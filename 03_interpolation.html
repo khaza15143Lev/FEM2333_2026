@@ -1,0 +1,1429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CEE 2333 — Lecture 2A: Interpolation</title>
+<script>
+window.MathJax = {
+  tex: {
+    inlineMath: [['\\(', '\\)'], ['$', '$']],
+    displayMath: [['$$', '$$'], ['\\[', '\\]']]
+  },
+  startup: {
+    pageReady() {
+      return MathJax.startup.defaultPageReady().then(function () {
+        document.body.classList.add('math-ready');
+      });
+    }
+  }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js"></script>
+<style>
+/* ============================================================
+   CEE 2333 — Combined Course Notes
+   Unified design system applied across all merged lectures
+   ============================================================ */
+
+:root {
+  --ink: #1e2430;
+  --sub: #4a5264;
+  --accent: #7a4a63;
+  --accent2: #3b7dd8;
+  --bg: #fbfaf8;
+  --card: #ffffff;
+  --line: #e4e0da;
+  --note-bg: #f4f0f8;
+  --note-border: #7a4a63;
+  --sidebar-bg: #23222a;
+  --sidebar-ink: #eae7e2;
+  --sidebar-sub: #9d97a8;
+  --sidebar-line: rgba(255, 255, 255, 0.1);
+  --sidebar-active: #c98fa8;
+  --sidebar-width: 300px;
+  --ink-soft: #888888;
+}
+
+/* Soften the pop-in as MathJax typesets each equation, once it attaches */
+mjx-container { opacity: 0; transition: opacity 0.25s ease; }
+body.math-ready mjx-container { opacity: 1; }
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  line-height: 1.65;
+}
+
+#top { position: absolute; top: 0; }
+
+/* ---------- layout shell ---------- */
+
+.shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  width: var(--sidebar-width);
+  flex: 0 0 var(--sidebar-width);
+  height: 100vh;
+  overflow-y: auto;
+  background: var(--sidebar-bg);
+  color: var(--sidebar-ink);
+  padding: 34px 22px 40px;
+  font-family: "Helvetica Neue", Arial, sans-serif;
+}
+
+.sidebar-head { margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid var(--sidebar-line); }
+
+.course-code {
+  margin: 0 0 6px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  color: var(--sidebar-active);
+  font-weight: 700;
+}
+
+.course-title {
+  margin: 0 0 10px;
+  font-size: 1.15rem;
+  line-height: 1.35;
+  font-weight: 700;
+  color: var(--sidebar-ink);
+}
+
+.course-author {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--sidebar-sub);
+}
+
+.toc-list { list-style: none; margin: 0; padding: 0; }
+
+.toc-list li { margin-bottom: 2px; }
+
+.toc-link {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  padding: 9px 10px;
+  border-radius: 6px;
+  text-decoration: none;
+  color: var(--sidebar-sub);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.toc-link:hover { background: rgba(255, 255, 255, 0.06); color: var(--sidebar-ink); }
+
+.toc-link.active {
+  background: rgba(201, 143, 168, 0.16);
+  color: var(--sidebar-ink);
+}
+
+.toc-link.active .toc-num { color: var(--sidebar-active); }
+
+.toc-num {
+  font-family: "SF Mono", Consolas, monospace;
+  font-size: 0.72rem;
+  color: var(--sidebar-sub);
+  flex: 0 0 auto;
+  padding-top: 2px;
+}
+
+.toc-text { display: flex; flex-direction: column; gap: 2px; }
+
+.toc-title { font-size: 0.88rem; line-height: 1.3; }
+
+.toc-sub { font-size: 0.72rem; color: var(--sidebar-sub); line-height: 1.3; }
+
+.sidebar-foot {
+  margin-top: 26px;
+  padding-top: 16px;
+  border-top: 1px solid var(--sidebar-line);
+  font-size: 0.72rem;
+  color: var(--sidebar-sub);
+  letter-spacing: 0.03em;
+}
+
+.nav-toggle { display: none; }
+
+.content {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 56px 56px 120px;
+  max-width: 900px;
+}
+
+.lecture { max-width: 780px; }
+
+.lecture-marker {
+  margin: 0 0 6px;
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+hr.lecture-sep {
+  border: none;
+  border-top: 2px dashed var(--line);
+  margin: 4.5em 0;
+  max-width: 780px;
+}
+
+.doc-end {
+  margin-top: 4em;
+  padding-top: 1.4em;
+  border-top: 1px solid var(--line);
+  color: var(--sub);
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  font-size: 0.85rem;
+  text-align: center;
+  max-width: 780px;
+}
+
+.doc-end a { color: var(--accent2); }
+
+/* ---------- typography ---------- */
+
+h1 {
+  font-size: 1.9rem;
+  margin: 0.2em 0 0.3em;
+  border-bottom: 3px solid var(--accent);
+  padding-bottom: 0.4em;
+  color: var(--ink);
+}
+
+h2 {
+  font-size: 1.4rem;
+  color: var(--accent);
+  margin-top: 2.4em;
+  border-top: 1px solid var(--line);
+  padding-top: 1em;
+}
+
+h3 {
+  font-size: 1.1rem;
+  color: var(--sub);
+  margin-top: 1.7em;
+}
+
+h4 { font-size: 1rem; color: var(--sub); margin-top: 1.4em; }
+
+p, li { color: var(--ink); }
+
+strong { color: var(--ink); }
+
+em { color: inherit; }
+
+a { color: var(--accent2); }
+
+::selection { background: #dcd3e6; }
+
+/* subtitle / author style lines that appear under a title */
+.subtitle, .doc-sub, p.subtitle {
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  color: var(--sub);
+  margin-top: -0.4em;
+  font-size: 1.05rem;
+}
+
+p.author, div.prof, div.author {
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  color: var(--sub);
+  font-size: 0.95rem;
+  margin: 0.2em 0 1em;
+}
+
+/* small "kicker"/eyebrow labels used above titles in a few lectures */
+.eyebrow, .utility, .sheet-kicker, .sheet-tag, .fem-label, .example-label,
+.panel-label, .toc-title.eyebrow {
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.72rem;
+  color: var(--accent);
+  font-weight: 700;
+  margin: 0 0 0.4em;
+  display: block;
+}
+
+.mesh-caption {
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  font-size: 0.86rem;
+  color: var(--sub);
+  font-style: italic;
+  text-align: center;
+  margin: 0.6em 0 1.4em;
+}
+
+/* small metadata rows (e.g. Source / Scope / Applied-to) laid out as spans */
+.divider, .revline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 22px;
+  border-top: 1px dashed var(--line);
+  margin: 1em 0;
+  padding-top: 0.7em;
+  font-size: 0.85rem;
+  color: var(--sub);
+}
+
+.divider span, .revline span { color: var(--sub); }
+.divider b, .revline b { color: var(--ink); }
+
+/* plain layout wrappers carried over from source documents: neutral */
+.page, .wrap, .sheet-stack, .hero, .hero-inner, .hero-text,
+.title-block, .titleblock, .masthead {
+  display: block;
+  max-width: 100%;
+}
+
+/* intro lecture's masthead labels, mapped onto the shared label styles */
+.kicker { font-family: "Helvetica Neue", Arial, sans-serif; text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.72rem; color: var(--accent); font-weight: 700; margin: 0 0 0.4em; display: block; }
+p.byline { font-family: "Helvetica Neue", Arial, sans-serif; color: var(--sub); font-size: 0.95rem; margin: 0.2em 0 1em; }
+footer.page-footer, footer.doc-footer { margin-top: 3em; padding-top: 1.2em; border-top: 1px solid var(--line); color: var(--sub); font-family: "Helvetica Neue", Arial, sans-serif; font-size: 0.82rem; text-align: center; }
+
+/* Lecture 2a masthead subtitle line */
+.sub { font-family: "Helvetica Neue", Arial, sans-serif; color: var(--sub); font-size: 1rem; margin-top: 0.3em; line-height: 1.5; }
+
+/* Lecture 3a inline SVG diagrams (scoped to svg.diagram so nothing else is affected) */
+svg.diagram .axis { stroke: #888; stroke-width: 1.4; }
+svg.diagram .curve { stroke: #2f4d3a; stroke-width: 2.6; fill: none; }
+svg.diagram .tangent { stroke: var(--accent2); stroke-width: 2.4; }
+svg.diagram .secant { stroke: #999; stroke-width: 1.4; }
+svg.diagram .secant.faint { stroke: #c9c9c9; }
+svg.diagram .approx-line, svg.diagram .approx { stroke: var(--accent2); stroke-width: 2.2; fill: none; }
+svg.diagram .dim { stroke: #bbb; stroke-width: 1; stroke-dasharray: 3,3; }
+svg.diagram .point { fill: var(--accent2); }
+svg.diagram .label { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 13px; fill: var(--sub); }
+svg.diagram .label.small { font-size: 11px; }
+svg.diagram .label.accent { fill: var(--accent2); font-weight: 600; }
+svg.diagram .rod { fill: #a9c6e8; stroke: #5c85b3; stroke-width: 1.5; }
+svg.diagram .node-outer { fill: #c8e6c9; stroke: #4a8a52; stroke-width: 1.5; }
+svg.diagram .node-inner { fill: #1f2320; }
+svg.diagram .force { stroke: #3f8f52; stroke-width: 2; }
+svg.diagram .area-fill { fill: #e9dcc9; opacity: 0.75; stroke: none; }
+
+.sheet, .wrap-sheet {
+  display: block;
+  margin: 2em 0;
+}
+
+/* blockquote used for editorial / revision notes */
+blockquote {
+  background: var(--note-bg);
+  border-left: 4px solid var(--note-border);
+  margin: 1.2em 0;
+  padding: 0.7em 1.1em;
+  border-radius: 0 4px 4px 0;
+  font-size: 0.95rem;
+  color: #4a3450;
+}
+
+blockquote p { margin: 0.3em 0; }
+
+/* unified "callout / note box" treatment for the many custom box
+   classes used across the original lectures (panels, definitions,
+   examples, principles, algorithms, correction notes, etc.) */
+div.callout, div.definition, div.example, div.principle, div.panel,
+div.algorithm, div.fem-callout, div.legend, div.eq-block {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent2);
+  border-radius: 6px;
+  padding: 1em 1.2em;
+  margin: 1.4em 0;
+  font-size: 0.96rem;
+}
+
+div.definition { border-left-color: var(--accent); }
+div.example { border-left-color: #3b8f6b; }
+div.principle { border-left-color: #b8862f; }
+
+/* tables */
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1.4em 0;
+  font-size: 0.92rem;
+  overflow-x: auto;
+  display: table;
+}
+
+div.table-scroll { overflow-x: auto; margin: 1.4em 0; }
+div.table-scroll table { margin: 0; }
+
+th, td {
+  border: 1px solid var(--line);
+  padding: 8px 12px;
+  text-align: left;
+}
+
+th, tr.header th, tr.header td {
+  background: #f1ede6;
+  color: var(--accent);
+}
+
+tr:nth-child(even) td, tr.even td {
+  background: #fbfaf7;
+}
+
+table.kmatrix td, table.map-table td { text-align: center; }
+
+/* figures / images / diagrams */
+figure {
+  margin: 1.8em 0;
+  text-align: center;
+}
+
+figure img, figure svg { margin: 0 auto; }
+
+figcaption {
+  font-size: 0.86rem;
+  color: var(--sub);
+  margin-top: 0.6em;
+  font-style: italic;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+  margin: 1.6em auto;
+  border-radius: 4px;
+}
+
+svg { max-width: 100%; height: auto; }
+
+.chart-wrap, .mesh-wrap { margin: 1.8em auto; text-align: center; max-width: 100%; }
+
+/* mini table-of-contents ("On This Page") */
+details.page-toc {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent2);
+  border-radius: 6px;
+  padding: 0.8em 1.2em;
+  margin: 1.2em 0 1.8em;
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  font-size: 0.9rem;
+}
+details.page-toc summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.02em;
+}
+details.page-toc ol {
+  margin: 0.8em 0 0.2em;
+  padding-left: 1.3em;
+  columns: 2;
+  column-gap: 24px;
+}
+details.page-toc li { margin-bottom: 0.35em; break-inside: avoid; }
+details.page-toc a { text-decoration: none; }
+details.page-toc a:hover { text-decoration: underline; }
+@media (max-width: 600px) { details.page-toc ol { columns: 1; } }
+
+/* code */
+code {
+  background: #f1ede6;
+  padding: 0.15em 0.4em;
+  border-radius: 3px;
+  font-size: 0.9em;
+  font-family: "SF Mono", Consolas, monospace;
+}
+
+pre {
+  background: #f4f4f0;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 1rem;
+  overflow-x: auto;
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
+pre code { background: none; padding: 0; }
+
+hr {
+  border: none;
+  border-top: 1px solid var(--line);
+  margin: 2.4em 0;
+}
+
+span.num, span.swatch {
+  display: inline-block;
+  font-family: "SF Mono", Consolas, monospace;
+  font-size: 0.85em;
+  background: #f1ede6;
+  border-radius: 3px;
+  padding: 0 0.35em;
+}
+
+/* ---------- responsive ---------- */
+
+@media (max-width: 900px) {
+  .content { padding: 40px 24px 100px; max-width: 100%; }
+  .lecture, .doc-end, hr.lecture-sep { max-width: 100%; }
+}
+
+@media (max-width: 760px) {
+  .nav-toggle {
+    display: block;
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 40;
+    background: var(--sidebar-bg);
+    color: var(--sidebar-ink);
+    border: none;
+    border-radius: 20px;
+    padding: 10px 16px;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 0.85rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  }
+
+  .shell { display: block; }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    z-index: 30;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.3);
+  }
+
+  .sidebar.open { transform: translateX(0); }
+
+  .content { padding: 84px 20px 100px; }
+}
+
+@media print {
+  .sidebar, .nav-toggle { display: none; }
+  .shell { display: block; }
+  .content { padding: 0; max-width: 100%; }
+}
+
+
+.toc-group {
+  margin: 16px 0 4px;
+  padding: 0 10px;
+}
+
+.toc-group-label {
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: var(--sidebar-active);
+}
+
+.toc-link.disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.toc-link.disabled:hover { background: none; color: var(--sidebar-sub); }
+
+.toc-soon {
+  font-family: "SF Mono", Consolas, monospace;
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--sidebar-sub);
+  border: 1px solid var(--sidebar-line);
+  border-radius: 9px;
+  padding: 1px 6px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+</style>
+</head>
+
+<body>
+<a href="#top" id="top"></a>
+<button id="navToggle" class="nav-toggle" aria-label="Toggle navigation" aria-expanded="false">&#9776; Contents</button>
+<div class="shell">
+  <nav class="sidebar" id="sidebar">
+    <div class="sidebar-head">
+      <p class="course-code">CEE 2333</p>
+      <h1 class="course-title">Fundamentals of the<br />Finite Element Method</h1>
+      <p class="course-author">Prof. Lev Khazanovich</p>
+    </div>
+        <ul class="toc-list">
+      <li><a href="00_table_of_contents.html" class="toc-link"><span class="toc-num">TOC</span><span class="toc-text"><span class="toc-title">Table of Contents</span><span class="toc-sub">All lectures</span></span></a></li>
+      <li><a href="01_introduction.html" class="toc-link"><span class="toc-num">01</span><span class="toc-text"><span class="toc-title">Introduction</span><span class="toc-sub">Course overview &amp; FEM basics</span></span></a></li>
+      <li class="toc-group"><span class="toc-group-label">Part 1 · Mathematical Foundations for FEM</span></li>
+      <li><a href="02_vectors_matrices_for_fem.html" class="toc-link"><span class="toc-num">1A</span><span class="toc-text"><span class="toc-title">Vectors and Matrices</span><span class="toc-sub">Linear algebra for FEM</span></span></a></li>
+      <li><a href="03_interpolation.html" class="toc-link active"><span class="toc-num">2A</span><span class="toc-text"><span class="toc-title">Interpolation and Approximation</span><span class="toc-sub">Shape functions &amp; approximation theory</span></span></a></li>
+      <li><a href="04_differentiation_integration.html" class="toc-link"><span class="toc-num">3A</span><span class="toc-text"><span class="toc-title">Differentiation and Integration</span><span class="toc-sub">Numerical calculus for FEM</span></span></a></li>
+      <li><div class="toc-link disabled"><span class="toc-num">4A</span><span class="toc-text"><span class="toc-title">Introduction to Python and Colab<span class="toc-soon">Soon</span></span><span class="toc-sub">Coming soon</span></span></div></li>
+      <li class="toc-group"><span class="toc-group-label">Part 2 · The Stiffness Method</span></li>
+      <li><a href="06_1d_spring_systems.html" class="toc-link"><span class="toc-num">2</span><span class="toc-text"><span class="toc-title">1-D Spring Systems</span><span class="toc-sub">The Direct Stiffness Method</span></span></a></li>
+      <li><a href="07_2d_trusses.html" class="toc-link"><span class="toc-num">3</span><span class="toc-text"><span class="toc-title">2-D Trusses</span><span class="toc-sub">Transformations &amp; assembly</span></span></a></li>
+      <li><a href="08_2d_frames.html" class="toc-link"><span class="toc-num">4</span><span class="toc-text"><span class="toc-title">2-D Frames</span><span class="toc-sub">Frame elements &amp; assembly</span></span></a></li>
+      <li class="toc-group"><span class="toc-group-label">Part 3</span></li>
+      <li><a href="09_energy_methods_fe_formulation.html" class="toc-link"><span class="toc-num">5</span><span class="toc-text"><span class="toc-title">Energy Methods and the Finite Element Formulation</span><span class="toc-sub">Minimum potential energy, frame element &amp; Rayleigh–Ritz</span></span></a></li>
+      <li class="toc-group"><span class="toc-group-label">Part 4 · From 1-D/2-D Structures to 3-D Continuum FEM</span></li>
+      <li><a href="11_hookes_law_constitutive_matrix.html" class="toc-link"><span class="toc-num">6</span><span class="toc-text"><span class="toc-title">Hooke's Law and the Constitutive Matrix</span><span class="toc-sub">3-D constitutive relations</span></span></a></li>
+      <li><a href="12_3d_finite_element_formulation.html" class="toc-link"><span class="toc-num">7</span><span class="toc-text"><span class="toc-title">3-D Finite Element Formulation</span><span class="toc-sub">From 1D/2D structures to 3D continuum elements</span></span></a></li>
+    </ul>
+    <p class="sidebar-foot">11-part outline &middot; 10 lectures published</p>
+  </nav>
+  <main class="content" id="content">
+
+<section class="lecture" id="lec03" aria-labelledby="lec03-marker">
+  <p class="lecture-marker" id="lec03-marker">Lecture 2A</p>
+
+<header class="masthead">
+<div class="eyebrow">FEM Coursework · Interpolation Theory</div>
+<h1>Lecture 2A — Interpolation</h1>
+</header>
+<div class="page">
+<div class="panel">
+<h2>Learning Objectives</h2>
+<p>By the end of this lecture, you should be able to:</p>
+<ul>
+<li>Construct 1D linear and quadratic interpolating functions from a set of data points.</li>
+<li>Recognize the piecewise "hat function" representation of a global piecewise-linear interpolant.</li>
+<li>Write and apply the general Lagrange interpolation formula, and connect it to hat functions as a special case.</li>
+<li>Extend 1D interpolation to 2D via bilinear and biquadratic interpolation on a rectangular grid.</li>
+<li>Explain <strong>why</strong> this matters: these same interpolation (shape) functions are what the finite element method uses to approximate geometry and field variables inside an element.</li>
+</ul>
+<h2>Scope</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Topic</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>1D linear interpolation</td>
+</tr>
+<tr>
+<td>2</td>
+<td>1D quadratic interpolation</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Lagrange interpolation (general formulation, 1D)</td>
+</tr>
+<tr>
+<td>4</td>
+<td>2D bilinear interpolation</td>
+</tr>
+<tr>
+<td>5</td>
+<td>2D biquadratic interpolation (brief extension)</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Bridge: interpolation → finite element shape functions</td>
+</tr>
+</tbody>
+</table>
+<h2>Terminology</h2>
+<p>A quick terminology note before we begin: <strong>interpolation</strong> matches specified nodal values exactly, while <strong>approximation</strong> may instead seek the best fit according to some chosen criterion and need not match every data point exactly. This lecture is concerned almost entirely with the former — nodal interpolation — which is what the finite element method builds on directly.</p>
+<details class="page-toc">
+<summary>On This Page (19 sections)</summary>
+<ol>
+<li><a href="#sec1">1D Linear Interpolation</a></li>
+<li><a href="#sec2">Concept</a></li>
+<li><a href="#sec3">Normalized (Natural) Coordinates</a></li>
+<li><a href="#sec4">Piecewise (hat) functions</a></li>
+<li><a href="#sec5">Worked Example</a></li>
+<li><a href="#sec6">1D Quadratic Interpolation</a></li>
+<li><a href="#sec7">Concept</a></li>
+<li><a href="#sec8">Worked Example</a></li>
+<li><a href="#sec9">Lagrange Interpolation — General Formulation</a></li>
+<li><a href="#sec10">General definition</a></li>
+<li><a href="#sec11">Lagrange Linear Interpolation ($n=1$)</a></li>
+<li><a href="#sec12">Lagrange Quadratic Interpolation ($n=2$)</a></li>
+<li><a href="#sec13">2D Bilinear Interpolation</a></li>
+<li><a href="#sec14">Concept</a></li>
+<li><a href="#sec15">Derivation</a></li>
+<li><a href="#sec16">Worked Example</a></li>
+<li><a href="#sec17">Extending to 2D Biquadratic Interpolation</a></li>
+<li><a href="#sec18">From Interpolation to Finite Element Shape Functions</a></li>
+<li><a href="#sec19">Summary</a></li>
+</ol>
+</details>
+<hr/>
+<h2 id="sec1">1. 1D Linear Interpolation</h2>
+<h3 id="sec2">1.1 Concept</h3>
+<p>Given two known points $(x_k, y_k)$ and $(x_{k+1}, y_{k+1})$, linear interpolation represents the interpolated field between them by the unique straight line passing through the two nodal values:</p>
+<p>$$
+y(x) = y_k\,\frac{x - x_{k+1}}{x_k - x_{k+1}} + y_{k+1}\,\frac{x - x_k}{x_{k+1} - x_k}
+$$</p>
+<p>Each coefficient multiplying $y_k$ or $y_{k+1}$ is a <strong>shape function</strong> (or interpolation function): it equals $1$ at its own node and $0$ at the other node.</p>
+<h3 id="sec3">1.2 Normalized (Natural) Coordinates</h3>
+<p>The formula above is correct but ties the shape functions to the specific global locations $x_k$ and $x_{k+1}$. It is far more convenient — and this is the convention finite element codes actually use — to introduce a <strong>normalized (or "natural") coordinate</strong> $\xi$ that maps every segment onto the same fixed reference interval, regardless of where that segment sits in $x$. The standard convention is to normalize to $\xi \in [-1, 1]$, with $\xi=-1$ at node $x_k$ and $\xi=+1$ at node $x_{k+1}$:</p>
+<p>$$
+\xi = \frac{2x - x_k - x_{k+1}}{x_{k+1} - x_k}
+$$</p>
+<p>In terms of $\xi$, the two linear shape functions take on a strikingly simple, segment-independent form:</p>
+<p>$$
+N_1(\xi) = \frac{1-\xi}{2}, \qquad N_2(\xi) = \frac{1+\xi}{2}
+$$</p>
+<p>Here local node $1$ corresponds to the global node $x_k$ and local node $2$ corresponds to $x_{k+1}$ — using local labels $1,2$ rather than $k,k+1$ keeps these reference-element functions visually distinct from the global hat functions $h_k(x)$ of Section 1.3.</p>
+<p>The interpolant then becomes $y(\xi) = N_1(\xi)\,y_k + N_2(\xi)\,y_{k+1}$. Each $N$ still equals $1$ at its own node ($\xi=-1$ or $\xi=+1$) and $0$ at the other — the defining shape-function property is unchanged — but the formula itself no longer depends on the segment's actual endpoints at all. Every linear segment in the mesh, no matter its length or location, is interpolated with the <em>same</em> pair of functions once it is mapped into $\xi$. This is exactly the idea Section 4 reuses to build the 2D bilinear element on a normalized $(\xi,\eta)$ square instead of an arbitrary rectangle.</p>
+<div class="example">
+<div class="example-label">Worked example — normalized linear interpolation</div>
+<p>Reuse the segment $x_k=0.2,\ x_{k+1}=0.6$ with $y_k=2,\ y_{k+1}=-1$ from Section 1.4, and find $y$ at $x=0.5$.</p>
+<p>Map $x=0.5$ into the normalized coordinate first:</p>
+<p>$$
+\xi = \frac{2(0.5) - 0.2 - 0.6}{0.6-0.2} = \frac{1-0.8}{0.4} = \frac{0.2}{0.4} = 0.5
+$$</p>
+<p>Then evaluate the two shape functions at $\xi=0.5$ and blend the nodal values:</p>
+<p>$$
+N_1(0.5) = \frac{1-0.5}{2} = 0.25, \qquad N_2(0.5) = \frac{1+0.5}{2} = 0.75
+$$</p>
+<p>$$
+y(0.5) = (0.25)(2) + (0.75)(-1) = 0.5 - 0.75 = \boxed{-0.25}
+$$</p>
+<p style="margin:10px 0 0;"><em>Check against the direct (non-normalized) formula from Section 1.1:</em> $y(0.5) = 2\cdot\frac{0.5-0.6}{0.2-0.6} + (-1)\cdot\frac{0.5-0.2}{0.6-0.2} = 2(0.25) + (-1)(0.75) = 0.5-0.75 = -0.25$ ✓ — both routes agree, exactly as they must.</p>
+</div>
+<div class="example">
+<div class="example-label">Worked example — normalized quadratic interpolation</div>
+<p>The same $\xi\in[-1,1]$ idea extends to the three-point quadratic case of Section 2. These basis functions follow directly from the quadratic Lagrange construction in Section 3.3 after choosing nodes at $\xi=-1,0,1$:</p>
+<p>$$
+N_{-1}(\xi) = \frac{\xi(\xi-1)}{2}, \qquad N_{0}(\xi) = 1-\xi^2, \qquad N_{1}(\xi) = \frac{\xi(\xi+1)}{2}
+$$</p>
+<p>Using the data from Section 2.2 ($F=2,-1,3$ at the three nodes, now relabeled by natural position rather than by $x$-value) and evaluating at the midpoint $\xi=0$:</p>
+<p>$$
+F(0) = N_{-1}(0)(2) + N_0(0)(-1) + N_1(0)(3) = (0)(2) + (1)(-1) + (0)(3) = \boxed{-1}
+$$</p>
+<p style="margin:10px 0 0;">which correctly reproduces the middle nodal value $F(x_1)=-1$ — exactly what a shape function evaluated at its own node must do.</p>
+</div>
+<h3 id="sec4">1.3 Piecewise (hat) functions</h3>
+<p>When data spans more than two points $x_0, x_1, \dots, x_n$, we interpolate piecewise, one segment at a time. Define the <strong>hat function</strong> $h_k(x)$ associated with node $x_k$:</p>
+<p>$$
+h_k(x) =
+\begin{cases}
+\dfrac{x - x_{k-1}}{x_k - x_{k-1}}, &amp; x_{k-1} \le x \le x_k \\
+\dfrac{x - x_{k+1}}{x_k - x_{k+1}}, &amp; x_k \le x \le x_{k+1} \\
+0, &amp; \text{otherwise}
+\end{cases}
+$$</p>
+<figure>
+<svg class="diagram" viewBox="0 0 560 270" xmlns="http://www.w3.org/2000/svg">
+<line style="stroke:var(--ink-soft);stroke-width:1.5" x1="30" x2="530" y1="200" y2="200"></line>
+<line style="stroke:var(--ink-soft);stroke-width:1;stroke-dasharray:3,3" x1="30" x2="530" y1="40" y2="40"></line>
+<text style="fill:var(--ink-soft)" font-size="14" x="12" y="44">1</text>
+<line style="stroke:var(--ink-soft);stroke-width:1.5" x1="60" x2="60" y1="196" y2="204"></line>
+<line style="stroke:var(--ink-soft);stroke-width:1.5" x1="165" x2="165" y1="196" y2="204"></line>
+<line style="stroke:var(--ink-soft);stroke-width:1.5" x1="270" x2="270" y1="196" y2="204"></line>
+<line style="stroke:var(--ink-soft);stroke-width:1.5" x1="375" x2="375" y1="196" y2="204"></line>
+<line style="stroke:var(--ink-soft);stroke-width:1.5" x1="480" x2="480" y1="196" y2="204"></line>
+<text style="fill:var(--ink-soft)" font-size="14" x="60" y="222" text-anchor="middle">xₖ₋₂</text>
+<text style="fill:var(--ink-soft)" font-size="14" x="165" y="222" text-anchor="middle">xₖ₋₁</text>
+<text style="fill:var(--ink-soft)" font-size="14" x="270" y="222" text-anchor="middle">xₖ</text>
+<text style="fill:var(--ink-soft)" font-size="14" x="375" y="222" text-anchor="middle">xₖ₊₁</text>
+<text style="fill:var(--ink-soft)" font-size="14" x="480" y="222" text-anchor="middle">xₖ₊₂</text>
+<path d="M 60 200 L 165 40 L 270 200 Z" style="fill:var(--accent);fill-opacity:0.12;stroke:var(--accent);stroke-width:2"></path>
+<path d="M 165 200 L 270 40 L 375 200 Z" style="fill:var(--accent2);fill-opacity:0.12;stroke:var(--accent2);stroke-width:2"></path>
+<path d="M 270 200 L 375 40 L 480 200 Z" style="fill:#3b7a5a;fill-opacity:0.12;stroke:#3b7a5a;stroke-width:2"></path>
+<line x1="120" x2="140" y1="248" y2="248" style="stroke:var(--accent);stroke-width:2"></line>
+<text style="fill:var(--ink)" font-size="14" x="148" y="253">hₖ₋₁</text>
+<line x1="250" x2="270" y1="248" y2="248" style="stroke:var(--accent2);stroke-width:2"></line>
+<text style="fill:var(--ink)" font-size="14" x="278" y="253">hₖ</text>
+<line x1="360" x2="380" y1="248" y2="248" style="stroke:#3b7a5a;stroke-width:2"></line>
+<text style="fill:var(--ink)" font-size="14" x="388" y="253">hₖ₊₁</text>
+</svg>
+<figcaption>Fig. 2 — Three overlapping hat functions $h_{k-1}$, $h_k$, $h_{k+1}$, each nonzero only on the two segments touching its own node; shading highlights each function's compact support.</figcaption>
+</figure>
+<p>This definition applies to the interior nodes $k=1,\dots,n-1$. For the endpoint nodes, $h_0$ and $h_n$ have support on only one adjacent segment, since there is no $x_{-1}$ or $x_{n+1}$ to define a second piece.</p>
+<p>The hat functions have the defining property $h_k(x_k) = 1$ and $h_k(x_j) = 0$ for $j \neq k$. The global piecewise-linear interpolant is then a single clean sum over <strong>all</strong> nodes:</p>
+<p>$$
+y(x) = \sum_{k=0}^{n} y_k\, h_k(x)
+$$</p>
+<p><strong>Partition of unity.</strong> At every $x$, the hat functions touching that point always sum to exactly $1$: $\sum_k h_k(x) = 1$. This is easy to overlook but important — it guarantees that a <em>constant</em> field ($y_k = c$ for every node) is reproduced exactly, since $y(x) = c\sum_k h_k(x) = c$. The same property holds for the general Lagrange basis functions introduced in Section 3. In finite elements, partition of unity is also one of the key ingredients needed for physically meaningful interpolation and element consistency.</p>
+<p style="margin:10px 0 0;"><em>Proof, on a single element:</em> in the normalized coordinate $\xi$ from Section 1.2, $N_1(\xi) + N_2(\xi) = \dfrac{1-\xi}{2} + \dfrac{1+\xi}{2} = 1$. Since only two hat functions are ever nonzero inside any interior element — the ones belonging to that element's two endpoints — this local identity is exactly $\sum_k h_k(x) = 1$ restricted to that element, so the global piecewise-linear basis sums to $1$ everywhere, not just at the nodes.</p>
+<blockquote>
+<p><strong>Note — connecting notation: </strong> A hat function is assembled from local degree-one Lagrange basis functions on the elements adjacent to node $k$. It is therefore the piecewise-linear, globally continuous version of the local Lagrange interpolation basis: on the left segment it equals the local basis function associated with the right-hand node, and on the right segment it equals the local basis function associated with the left-hand node. Written in the normalized coordinate $\xi$ from Section 1.2, these local linear bases take the familiar forms $N_1(\xi)=(1-\xi)/2$ and $N_2(\xi)=(1+\xi)/2$. The term "hat function" simply describes the resulting piecewise-linear shape; it is the same interpolation idea developed more generally in Section 3.</p>
+</blockquote>
+<h3 id="sec5">1.4 Worked Example</h3>
+<p>Interpolate the following data with piecewise linear segments:</p>
+<table>
+<thead>
+<tr>
+<th>$x$</th>
+<th>0.2</th>
+<th>0.6</th>
+<th>0.8</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>$F(x)$</td>
+<td>2</td>
+<td>−1</td>
+<td>3</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Segment 1 ($0.2 \le x \le 0.6$):</strong></p>
+<p>$$
+g(x) = 2\cdot\frac{x-0.6}{0.2-0.6} + (-1)\cdot\frac{x-0.2}{0.6-0.2}
+$$</p>
+<p>$$
+\boxed{g(x) = -7.5x + 3.5}, \quad 0.2 \le x \le 0.6
+$$</p>
+<p><em>Check:</em> $g(0.2) = 2$ ✓, $\; g(0.6) = -1$ ✓</p>
+<p><strong>Segment 2 ($0.6 \le x \le 0.8$):</strong></p>
+<p>$$
+g(x) = -1\cdot\frac{x-0.8}{0.6-0.8} + 3\cdot\frac{x-0.6}{0.8-0.6}
+$$</p>
+<p>$$
+\boxed{g(x) = 20x - 13}, \quad 0.6 \le x \le 0.8
+$$</p>
+<p><em>Check:</em> $g(0.6) = -1$ ✓, $\; g(0.8) = 3$ ✓</p>
+<hr/>
+<h2 id="sec6">2. 1D Quadratic Interpolation</h2>
+<h3 id="sec7">2.1 Concept</h3>
+<p>Quadratic interpolation fits a parabola through <strong>three</strong> points at once rather than a line through two. It's worth distinguishing three related but different ideas that this label can refer to: a single quadratic passed through exactly three nodes (the case treated here), piecewise quadratic interpolation over a mesh of three-node elements (used later in the finite element context), and a global quadratic fit when only three nodes happen to be available for the whole domain. In this section, we use the first meaning: given three distinct nodes $x_0,x_1,x_2$, construct the unique second-order polynomial that passes through all three nodal values. Piecewise quadratic elements are deferred to the FEM discussion.</p>
+<figure>
+<svg class="diagram" viewBox="0 0 480 280" xmlns="http://www.w3.org/2000/svg">
+<line style="stroke:var(--ink-soft);stroke-width:1.5" x1="30" x2="450" y1="240" y2="240"></line>
+<line style="stroke:var(--ink-soft);stroke-width:1.5" x1="40" x2="40" y1="20" y2="250"></line>
+<text style="fill:var(--ink-soft)" font-size="15" x="455" y="245">x</text>
+<text style="fill:var(--ink-soft)" font-size="15" x="18" y="20">y</text>
+<path d="M 80 200 Q 240 20 400 190" fill="none" style="stroke:var(--accent);stroke-width:3"></path>
+<circle cx="80" cy="200" style="fill:var(--ink)" r="5"></circle>
+<circle cx="240" cy="107.5" style="fill:var(--ink)" r="5"></circle>
+<circle cx="400" cy="190" style="fill:var(--ink)" r="5"></circle>
+<text style="fill:var(--ink)" font-size="14" x="72" y="222">x₀</text>
+<text style="fill:var(--ink)" font-size="14" x="232" y="87">x₁</text>
+<text style="fill:var(--ink)" font-size="14" x="392" y="212">x₂</text>
+</svg>
+<figcaption>Fig. 1 — A single parabola interpolating three points $(x_0,x_1,x_2)$.</figcaption>
+</figure>
+<h3 id="sec8">2.2 Worked Example</h3>
+<p>Fit a single quadratic through:</p>
+<table>
+<thead>
+<tr>
+<th>$x$</th>
+<th>0.2</th>
+<th>0.6</th>
+<th>0.8</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>$F(x)$</td>
+<td>2</td>
+<td>−1</td>
+<td>3</td>
+</tr>
+</tbody>
+</table>
+<p>Using the Lagrange quadratic basis (derived in Section 3.3) with $x_0=0.2,\ x_1=0.6,\ x_2=0.8$:</p>
+<p>$$
+g(x) = 2\,L_{0,2}(x) + (-1)\,L_{1,2}(x) + 3\,L_{2,2}(x)
+$$</p>
+<p>Expanding and collecting terms:</p>
+<p>$$
+\boxed{g(x) = \frac{275x^2 - 265x + 54}{6} \;\approx\; 45.83x^2 - 44.17x + 9}
+$$</p>
+<p><em>Check:</em> $g(0.2) = 2$ ✓, $\; g(0.6) = -1$ ✓, $\; g(0.8) = 3$ ✓</p>
+<p>Notice this single quadratic passes through <strong>all three</strong> points exactly — unlike the piecewise-linear case in Section 1.4, which needed two separate line segments.</p>
+<hr/>
+<h2 id="sec9">3. Lagrange Interpolation — General Formulation</h2>
+<h3 id="sec10">3.1 General definition</h3>
+<p>The Lagrange form of the interpolating polynomial generalizes both examples above to any order $n$. For $k = 0, 1, \dots, n$, define:</p>
+<p>$$
+L_{k,n}(x) = \prod_{\substack{j=0 \ j \neq k}}^{n} \frac{x - x_j}{x_k - x_j}, \qquad n \ge 1, \qquad L_{0,0}(x) = 1
+$$</p>
+<p>so that the interpolating polynomial through $n+1$ points is:</p>
+<p>$$
+P(x) = \sum_{k=0}^{n} L_{k,n}(x)\, P(x_k)
+$$</p>
+<p>Each $L_{k,n}(x)$ satisfies the same defining property as the hat functions in Section 1.3:</p>
+<p>$$
+L_{k,n}(x_j) = \delta_{kj} \quad \text{(1 at its own node, 0 at all others)}
+$$</p>
+<p>The hat function and the degree-one Lagrange basis share the same nodal interpolation property. More precisely, a global hat function is assembled from degree-one <strong>local</strong> Lagrange basis functions on the elements adjacent to its associated node.</p>
+<p><strong>Uniqueness.</strong> Given $n+1$ distinct nodes $x_0,\dots,x_n$, there is exactly <em>one</em> polynomial of degree $\le n$ passing through all $n+1$ nodal values — the Lagrange form above is simply one convenient way to write that unique polynomial down. This is worth stating explicitly now, because later, when hierarchical or Hermite-type bases are introduced, it is this same uniqueness result (not the specific formula) that keeps getting reused.</p>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Piecewise-linear hats</th>
+<th>Single Lagrange polynomial</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Nodes used</td>
+<td>Two per element</td>
+<td>All selected nodes</td>
+</tr>
+<tr>
+<td>Support</td>
+<td>Local (compact, two segments)</td>
+<td>Usually global</td>
+</tr>
+<tr>
+<td>Polynomial degree</td>
+<td>One, on each element</td>
+<td>Up to $n$ over the full interval</td>
+</tr>
+<tr>
+<td>Continuity</td>
+<td>Continuous across nodes ($C^0$)</td>
+<td>Globally polynomial (smooth everywhere)</td>
+</tr>
+<tr>
+<td>FEM relevance</td>
+<td>Standard nodal basis</td>
+<td>Local Lagrange polynomials are used on individual elements; assembling them across elements produces the FEM approximation</td>
+</tr>
+</tbody>
+</table>
+<div class="callout">
+<p><strong>Common pitfall.</strong> Two mistakes show up constantly when students first build these products by hand:</p>
+<ul>
+<li><strong>Mixing up node order in the product.</strong> Each factor in $L_{k,n}(x)$ must skip $j=k$ — forgetting to omit that term (or omitting the wrong one) silently produces a function that is no longer $1$ at its own node.</li>
+<li><strong>Treating local support as global.</strong> A hat function $h_k(x)$ is nonzero only on the two segments touching node $x_k$ — it is <em>locally</em> supported. The Lagrange polynomial $L_{k,n}(x)$ built from <em>all</em> $n+1$ nodes at once, by contrast, is generally nonzero across the <em>entire</em> domain. Piecewise-linear interpolation stitches together many small, local Lagrange problems; a single higher-order Lagrange fit is one global one. Confusing the two is a frequent source of error when a fit produces unexpected oscillation between distant nodes.</li>
+</ul>
+</div>
+<h3 id="sec11">3.2 Lagrange Linear Interpolation ($n=1$)</h3>
+<p>$$
+L_{0,1}(x) = \frac{x - x_1}{x_0 - x_1}, \qquad L_{1,1}(x) = \frac{x - x_0}{x_1 - x_0}
+$$</p>
+<p>$$
+P(x) = L_{0,1}(x)\,P(x_0) + L_{1,1}(x)\,P(x_1)
+$$</p>
+<p>This reproduces the linear interpolation formula from Section 1.1 exactly.</p>
+<h3 id="sec12">3.3 Lagrange Quadratic Interpolation ($n=2$)</h3>
+<p>$$
+L_{0,2}(x) = \frac{(x-x_1)(x-x_2)}{(x_0-x_1)(x_0-x_2)}, \qquad
+L_{1,2}(x) = \frac{(x-x_0)(x-x_2)}{(x_1-x_0)(x_1-x_2)}, \qquad
+L_{2,2}(x) = \frac{(x-x_0)(x-x_1)}{(x_2-x_0)(x_2-x_1)}
+$$</p>
+<p>$$
+P(x) = L_{0,2}(x)\,P(x_0) + L_{1,2}(x)\,P(x_1) + L_{2,2}(x)\,P(x_2)
+$$</p>
+<p>These are the basis functions used directly in the worked example of Section 2.2.</p>
+<hr/>
+<h2 id="sec13">4. 2D Bilinear Interpolation</h2>
+<h3 id="sec14">4.1 Concept</h3>
+<p>Bilinear interpolation extends linear interpolation to functions of two variables $(x, y)$ on a rectilinear grid. It is performed by applying 1D linear interpolation <strong>first in one direction, then again in the other.</strong></p>
+<h3 id="sec15">4.2 Derivation</h3>
+<p>Interpolate in $x$ along each of the two bounding $y$-rows $y_1$ and $y_2$ (with $x_1 \le x \le x_2$ and $y_1 \le y \le y_2$):</p>
+<p>$$
+f(x, y_1) \approx f(x_1,y_1)\,\frac{x_2 - x}{x_2-x_1} + f(x_2,y_1)\,\frac{x - x_1}{x_2-x_1}
+$$</p>
+<p>$$
+f(x, y_2) \approx f(x_1,y_2)\,\frac{x_2 - x}{x_2-x_1} + f(x_2,y_2)\,\frac{x - x_1}{x_2-x_1}
+$$</p>
+<p>Then interpolate the two results in $y$:</p>
+<p>$$
+f(x,y) \approx f(x,y_1)\,\frac{y_2-y}{y_2-y_1} + f(x,y_2)\,\frac{y-y_1}{y_2-y_1}
+$$</p>
+<p>These three steps are algebraically correct but easy to sign-error by hand or in code, because the fractions mix $x_1,x_2,y_1,y_2$ in varying positions. It is far cleaner to first change variables to <strong>normalized (natural) coordinates</strong> $\xi,\eta$, using exactly the $[-1,1]$ convention introduced for the 1D case in Section 1.2:</p>
+<p>$$
+\xi = \frac{2x - x_1 - x_2}{x_2 - x_1}, \qquad \eta = \frac{2y - y_1 - y_2}{y_2 - y_1}
+$$</p>
+<p>so that $\xi=-1$ at $x_1$ and $\xi=+1$ at $x_2$ (and likewise for $\eta$ and $y$). Substituting and simplifying, the three interpolation steps above collapse into one clean weighted sum of the four corner values, each weight being a product of a 1D linear shape function in $\xi$ (Section 1.2) and a 1D linear shape function in $\eta$ — exactly the "linear $\times$ linear" tensor-product structure the name <em>bilinear</em> promises:</p>
+<p>$$
+\boxed{f(\xi,\eta) \approx f_{11}\,\frac{(1-\xi)(1-\eta)}{4} + f_{21}\,\frac{(1+\xi)(1-\eta)}{4} + f_{12}\,\frac{(1-\xi)(1+\eta)}{4} + f_{22}\,\frac{(1+\xi)(1+\eta)}{4}}
+$$</p>
+<p>where $f_{11}=f(x_1,y_1)$, $f_{21}=f(x_2,y_1)$, $f_{12}=f(x_1,y_2)$, and $f_{22}=f(x_2,y_2)$ are the four corner values of the rectangle, sitting respectively at $(\xi,\eta)=(-1,-1),\,(1,-1),\,(-1,1),\,(1,1)$. Each of the four coefficients is $1$ at its own corner and $0$ at the other three — the same defining property every shape function in this lecture shares — and, as with the hat functions in Section 1.3, the four coefficients sum to $1$ for any $(\xi,\eta)$ (partition of unity). The symbol $\approx$ emphasizes that the interpolant matches the nodal data exactly but need not equal the underlying field at interior points.</p>
+<figure>
+<svg class="diagram" viewBox="0 0 420 300" xmlns="http://www.w3.org/2000/svg">
+<rect x="70" y="40" width="280" height="200" fill="none" style="stroke:var(--accent2);stroke-width:2"></rect>
+<line x1="70" x2="70" y1="250" y2="260" style="stroke:var(--ink-soft);stroke-width:1.2"></line>
+<line x1="350" x2="350" y1="250" y2="260" style="stroke:var(--ink-soft);stroke-width:1.2"></line>
+<line x1="70" x2="350" y1="255" y2="255" style="stroke:var(--ink-soft);stroke-width:1.2"></line>
+<circle cx="70" cy="240" r="5" style="fill:var(--ink)"></circle>
+<circle cx="350" cy="240" r="5" style="fill:var(--ink)"></circle>
+<circle cx="70" cy="40" r="5" style="fill:var(--ink)"></circle>
+<circle cx="350" cy="40" r="5" style="fill:var(--ink)"></circle>
+<circle cx="245" cy="153" r="5" style="fill:var(--accent)"></circle>
+<text x="10" y="235" font-size="14" style="fill:var(--ink)">f₁₁</text>
+<text x="10" y="250" font-size="13" style="fill:var(--sub)">(ξ,η)=(−1,−1)</text>
+<text x="358" y="235" font-size="14" style="fill:var(--ink)">f₂₁</text>
+<text x="358" y="250" font-size="13" style="fill:var(--sub)">(1,−1)</text>
+<text x="10" y="35" font-size="14" style="fill:var(--ink)">f₁₂</text>
+<text x="10" y="20" font-size="13" style="fill:var(--sub)">(−1,1)</text>
+<text x="358" y="35" font-size="14" style="fill:var(--ink)">f₂₂</text>
+<text x="358" y="20" font-size="13" style="fill:var(--sub)">(1,1)</text>
+<text x="252" y="148" font-size="13" style="fill:var(--accent)">f(ξ,η)</text>
+<text x="200" y="278" font-size="13" style="fill:var(--ink-soft)">ξ</text>
+</svg>
+<figcaption>Fig. 2 — A bilinear patch on the normalized square $\xi,\eta\in[-1,1]$: the value at any interior point is a weighted blend of the four corner values.</figcaption>
+</figure>
+<h3 id="sec16">4.3 Worked Example</h3>
+<p>Given the corner data:</p>
+<table>
+<thead>
+<tr>
+<th>$x$</th>
+<th>$y$</th>
+<th>$f(x,y)$</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2</td>
+<td>0</td>
+<td>16</td>
+</tr>
+<tr>
+<td>2</td>
+<td>8</td>
+<td>−24</td>
+</tr>
+<tr>
+<td>6</td>
+<td>0</td>
+<td>8</td>
+</tr>
+<tr>
+<td>6</td>
+<td>8</td>
+<td>0</td>
+</tr>
+</tbody>
+</table>
+<p>Find $f(5, 2)$, with $x_1=2,\ x_2=6,\ y_1=0,\ y_2=8$, so $f_{11}=16,\ f_{21}=8,\ f_{12}=-24,\ f_{22}=0$.</p>
+<p>First convert to normalized coordinates, using the same $[-1,1]$ mapping as Section 1.2:</p>
+<p>$$
+\xi = \frac{2(5) - 2 - 6}{6-2} = \frac{2}{4} = 0.5, \qquad \eta = \frac{2(2) - 0 - 8}{8-0} = \frac{-4}{8} = -0.5
+$$</p>
+<p>Then apply the boxed formula from Section 4.2 directly:</p>
+<p>$$
+f(5,2) \approx 16\cdot\frac{(1-0.5)(1-(-0.5))}{4} + 8\cdot\frac{(1+0.5)(1-(-0.5))}{4} + (-24)\cdot\frac{(1-0.5)(1+(-0.5))}{4} + 0\cdot\frac{(1+0.5)(1+(-0.5))}{4}
+$$</p>
+<p>$$
+f(5,2) \approx 16(0.1875) + 8(0.5625) - 24(0.0625) + 0(0.1875)
+$$</p>
+<p>$$
+\boxed{f(5,2) \approx 3 + 4.5 - 1.5 + 0 = 6}
+$$</p>
+<p><em>Check:</em> at each corner ($\xi,\eta \in \{-1,1\}$) the formula returns exactly that corner's value — try $\xi=-1,\eta=-1$ and confirm it returns $f_{11}=16$.</p>
+<hr/>
+<h2 id="sec17">5. Extending to 2D Biquadratic Interpolation</h2>
+<p>The same tensor-product idea that turned two 1D linear bases into the bilinear rectangle in Section 4 generalizes directly to quadratic basis functions. A 9-node biquadratic quadrilateral reference element has three nodes along each local axis $\xi$ and $\eta$, normalized the same way as every other natural coordinate in this lecture: $\xi,\eta\in[-1,1]$, with the two edge nodes at $\xi=-1$ and $\xi=1$ and the mid-side node at $\xi=0$ (and likewise for $\eta$). Every one of the 9 shape functions is simply the product of one 1D basis function per direction:</p>
+<p>$$
+N_{pq}(\xi,\eta) = N_p(\xi) \cdot N_q(\eta), \qquad p,q \in \{-1,0,1\}
+$$</p>
+<p>To see where this comes from rather than just stating it, write out the three 1D quadratic bases explicitly for a local axis with nodes at $\xi=-1$ (edge), $\xi=0$ (mid), $\xi=1$ (edge), using the general Lagrange formula from Section 3.3:</p>
+<p>$$
+N_{-1}(\xi) = \frac{\xi(\xi-1)}{2}, \qquad
+N_{0}(\xi) = 1-\xi^2, \qquad
+N_{1}(\xi) = \frac{\xi(\xi+1)}{2}
+$$</p>
+<p>and identically for $N_{-1}(\eta), N_0(\eta), N_1(\eta)$ (these are exactly the bases used in the normalized quadratic example of Section 1.2). The corner node at $(\xi,\eta)=(-1,-1)$ then combines the two "edge" bases — one per direction:</p>
+<p>$$
+N_{\text{corner}}(\xi,\eta) = N_{-1}(\xi)\cdot N_{-1}(\eta) = \frac{\xi(\xi-1)}{2}\cdot\frac{\eta(\eta-1)}{2} = \frac{\xi\eta(\xi-1)(\eta-1)}{4}
+$$</p>
+<p>a mid-side node, say at $(\xi,\eta)=(0,-1)$, instead combines a "mid" basis with an "edge" basis:</p>
+<p>$$
+N_{\text{mid-side}}(\xi,\eta) = N_0(\xi)\cdot N_{-1}(\eta) = (1-\xi^2)\cdot\frac{\eta(\eta-1)}{2}
+$$</p>
+<p>and the single center node combines the two "mid" bases: $N_{\text{center}}(\xi,\eta) = N_0(\xi)\cdot N_0(\eta) = (1-\xi^2)(1-\eta^2)$. Exactly as bilinear interpolation was "linear × linear," biquadratic interpolation is simply "quadratic × quadratic" — the same Lagrange machinery from Section 3, applied once per coordinate direction, on the same $[-1,1]$ natural coordinates used everywhere else in this lecture. The full 9-function set and its role in the isoparametric map are developed further in Lecture 11.</p>
+<hr/>
+<h2 id="sec18">6. From Interpolation to Finite Element Shape Functions</h2>
+<p>Every formula in this lecture — hat functions, Lagrange bases, bilinear and biquadratic products — is doing the same job: build a function that is $1$ at one node and $0$ at every other node, then use it to blend nodal values smoothly across a domain.</p>
+<p>In the finite element method, these interpolation functions are renamed <strong>shape functions</strong>, $[N]$, and used for two purposes at once inside each element:</p>
+<ol>
+<li>To define the element's <strong>geometry</strong> from its nodal coordinates.</li>
+<li>To approximate the <strong>displacement (or other field variable)</strong> from its nodal values.</li>
+</ol>
+<p>When the <em>same</em> family of shape functions, expressed in natural coordinates, is used to interpolate both the element's geometry and its field variables, the element is called <strong>isoparametric</strong> — the subject of the next lecture. The emphasis is on the coordinate mapping itself, not merely on reusing similarly shaped formulas. The interpolation ideas are the same; the next lecture adds the geometric mapping and derivative transformations needed to use them in finite elements.</p>
+<hr/>
+<h2 id="sec19">Summary</h2>
+<ul>
+<li>Linear and quadratic interpolation are two ends of the same idea: fit a low-order polynomial exactly through known nodal values.</li>
+<li>A hat function is the globally assembled, piecewise-linear form of local degree-one Lagrange basis functions; the Lagrange formulation generalizes this nodal interpolation idea to arbitrary polynomial degree.</li>
+<li>Bilinear and biquadratic interpolation are simply 1D interpolation applied independently in each coordinate direction, then combined as a tensor product.</li>
+<li>These same functions reappear, unchanged in spirit, as the <strong>shape functions</strong> that define geometry and displacement fields in finite elements — the topic of the next lecture.</li>
+</ul>
+</div>
+</div>
+<div class="doc-footer">Lecture 2A · Interpolation</div>
+
+
+</section>
+<hr class="lecture-sep" />
+<nav class="page-pager" style="display:flex;justify-content:space-between;margin:2.5em 0 0;font-family:'Helvetica Neue',Arial,sans-serif;font-size:0.9rem;"><a href="02_vectors_matrices_for_fem.html">&larr; Vectors and Matrices</a><a href="04_differentiation_integration.html">Differentiation and Integration &rarr;</a></nav>
+<footer class="doc-end">
+      <p>CEE 2333 — Fundamentals of the Finite Element Method · Combined Course Notes</p>
+      <p>This page was developed with the assistance of various generative AI tools.</p>
+      <p><a href="#top">Back to top ↑</a></p>
+    </footer>
+  </main>
+</div>
+<script>
+(function () {
+  var toggle = document.getElementById('navToggle');
+  var sidebar = document.getElementById('sidebar');
+  toggle.addEventListener('click', function () {
+    var open = sidebar.classList.toggle('open');
+    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
+  var links = Array.prototype.slice.call(document.querySelectorAll('.toc-link'));
+  links.forEach(function (l) {
+    l.addEventListener('click', function () {
+      sidebar.classList.remove('open');
+      toggle.setAttribute('aria-expanded', 'false');
+    });
+  });
+})();
+</script>
+<script data-pplx-inline-edit>
+(function () {
+  if (window === window.top) return;
+
+  const allowedParentOrigins = ["https://www.perplexity.ai","https://perplexity.ai","https://testing.perplexity.ai","https://staging.perplexity.ai","https://*.preview.i.perplexity.ai","http://perplexity.localhost","http://localhost:1420","http://127.0.0.1:1420","http://localhost:3000","http://127.0.0.1:3000","http://localhost:5173","http://127.0.0.1:5173"];
+  const MAX_FONT_BYTES = 500 * 1024;
+  const MAX_TOTAL_FONT_BYTES = 2 * 1024 * 1024;
+  let scrollForwarding = false;
+  let scrollRaf = 0;
+  let trustedTopOrigin = null;
+
+  // Allow entries like "https://*.preview.i.perplexity.ai" — the wildcard
+  // matches a single DNS label (no dots), so "https://*.foo" cannot stretch
+  // across multiple labels.
+  function matchesAllowedOrigin(origin) {
+    if (!origin) return false;
+    for (const entry of allowedParentOrigins) {
+      if (!entry.includes("*")) {
+        if (entry === origin) return true;
+        continue;
+      }
+      const pattern = new RegExp(
+        "^" +
+          entry.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[^.]+") +
+          "$",
+      );
+      if (pattern.test(origin)) return true;
+    }
+    return false;
+  }
+
+  // Trust decision: when the sender is same-origin-visible (event.origin is a
+  // real origin like https://www.perplexity.ai) we trust event.origin directly.
+  // When event.origin is "null" (opaque broker srcdoc), we fall back to the
+  // broker's stamped `parentOrigin` to identify the top window. The fallback
+  // is claim-only — we rely on the browser's native `targetOrigin` enforcement
+  // on the response path (see postToTrustedTop) to ensure replies can't be
+  // delivered to anyone but the actual top window of that claimed origin.
+  function getTrustedParentOrigin(event) {
+    const forwardedParentOrigin =
+      typeof event.data.parentOrigin === "string" ? event.data.parentOrigin : null;
+    const parentOrigin = event.origin === "null" ? forwardedParentOrigin : event.origin;
+    return matchesAllowedOrigin(parentOrigin) ? parentOrigin : null;
+  }
+
+  // All responses go to window.top with targetOrigin = the allowlisted origin.
+  // An attacker that iframes us inside their own null-origin broker can claim
+  // any parentOrigin they like, but the browser will drop the reply whenever
+  // the real top's origin doesn't match — so the screenshot never leaves.
+  function postToTrustedTop(message) {
+    if (!trustedTopOrigin) return;
+    try {
+      window.top.postMessage(message, trustedTopOrigin);
+    } catch (_error) {}
+  }
+
+  function inlineAll(original, clone) {
+    if (original.nodeType !== 1 || clone.nodeType !== 1) return;
+
+    try {
+      const computedStyle = getComputedStyle(original);
+      // cssText on a computed style is the serialized declaration in modern
+      // Chromium/Safari — a single read beats enumerating ~400 longhand
+      // properties. Firefox returns "" here, so we fall back on empty.
+      const serialized = computedStyle.cssText;
+      if (serialized) {
+        clone.style.cssText = serialized;
+      } else {
+        const parts = new Array(computedStyle.length);
+        for (let index = 0; index < computedStyle.length; index += 1) {
+          const property = computedStyle[index];
+          parts[index] = `${property}:${computedStyle.getPropertyValue(property)};`;
+        }
+        clone.style.cssText = parts.join("");
+      }
+    } catch (_error) {}
+
+    const originalChildren = original.children;
+    const clonedChildren = clone.children;
+    for (
+      let index = 0;
+      index < originalChildren.length && index < clonedChildren.length;
+      index += 1
+    ) {
+      inlineAll(originalChildren[index], clonedChildren[index]);
+    }
+  }
+
+  function extractFontUrl(srcValue) {
+    const matches = [
+      ...srcValue.matchAll(
+        /url\(["']?([^"')]+)["']?\)(?:\s*format\(["']?([^"')]+)["']?\))?/gi,
+      ),
+    ];
+    if (matches.length === 0) return null;
+    const woff2 = matches.find((m) => m[2] && m[2].toLowerCase().includes("woff2"));
+    if (woff2) return woff2[1];
+    const woff = matches.find((m) => m[2] && m[2].toLowerCase().includes("woff"));
+    if (woff) return woff[1];
+    return matches[0][1];
+  }
+
+  // Cache resolved font URL -> data URI across captures. Fonts on a page
+  // essentially never change, and a batch run emits multiple captures back to
+  // back — without this we'd refetch + re-base64 every time.
+  const fontDataUriCache = new Map();
+  const SRC_DECLARATION_RE = /src\s*:\s*[^;}]+/i;
+
+  async function fetchAsDataUri(url) {
+    if (fontDataUriCache.has(url)) return fontDataUriCache.get(url);
+    let dataUri = null;
+    try {
+      const response = await fetch(url, { mode: "cors", credentials: "omit" });
+      if (response.ok) {
+        const blob = await response.blob();
+        if (blob.size <= MAX_FONT_BYTES) {
+          dataUri = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () =>
+              resolve(typeof reader.result === "string" ? reader.result : null);
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(blob);
+          });
+        }
+      }
+    } catch (_error) {
+      dataUri = null;
+    }
+    fontDataUriCache.set(url, dataUri);
+    return dataUri;
+  }
+
+  function collectFontFaceRuleTexts() {
+    const rules = [];
+    for (const sheet of document.styleSheets) {
+      let cssRules;
+      try {
+        cssRules = sheet.cssRules;
+      } catch (_error) {
+        continue;
+      }
+      if (!cssRules) continue;
+      for (const rule of cssRules) {
+        const cssText = rule.cssText || "";
+        if (cssText.startsWith("@font-face")) rules.push(cssText);
+      }
+    }
+    return rules;
+  }
+
+  async function buildInlinedFontCss() {
+    const ruleTexts = collectFontFaceRuleTexts();
+    if (ruleTexts.length === 0) return null;
+
+    const resolved = ruleTexts.map((cssText) => {
+      if (!SRC_DECLARATION_RE.test(cssText)) return null;
+      const srcMatch = cssText.match(/src\s*:\s*([^;}]+)[;}]/i);
+      if (!srcMatch) return null;
+      const url = extractFontUrl(srcMatch[1]);
+      if (!url) return null;
+      try {
+        return { cssText, url: new URL(url, document.baseURI).href };
+      } catch (_error) {
+        return null;
+      }
+    });
+
+    const dataUris = await Promise.all(
+      resolved.map((entry) => (entry ? fetchAsDataUri(entry.url) : Promise.resolve(null))),
+    );
+
+    const inlined = [];
+    let totalBytes = 0;
+    for (let index = 0; index < resolved.length; index += 1) {
+      const entry = resolved[index];
+      const dataUri = dataUris[index];
+      if (!entry || !dataUri) continue;
+      const approxBytes = dataUri.length * 0.75;
+      if (totalBytes + approxBytes > MAX_TOTAL_FONT_BYTES) break;
+      totalBytes += approxBytes;
+      inlined.push(entry.cssText.replace(SRC_DECLARATION_RE, `src: url("${dataUri}")`));
+    }
+    return inlined.length > 0 ? inlined.join("\n") : null;
+  }
+
+  function stripExternal(clone) {
+    const images = clone.querySelectorAll("img");
+    for (let index = 0; index < images.length; index += 1) {
+      const src = images[index].getAttribute("src");
+      if (src && !src.startsWith("data:")) images[index].removeAttribute("src");
+    }
+
+    const elements = clone.querySelectorAll("*");
+    for (let index = 0; index < elements.length; index += 1) {
+      const style = elements[index].style.cssText;
+      if (style && style.includes("url(")) {
+        elements[index].style.cssText = style.replace(
+          /url\(["']?(?!data:)[^)"']*["']?\)/gi,
+          "none",
+        );
+      }
+    }
+  }
+
+  function emitScroll() {
+    scrollRaf = 0;
+    if (!scrollForwarding) return;
+    postToTrustedTop({
+      type: "INLINE_EDIT_SCROLL",
+      scrollX: window.scrollX,
+      scrollY: window.scrollY,
+    });
+  }
+
+  window.addEventListener(
+    "scroll",
+    function () {
+      if (!scrollForwarding || scrollRaf) return;
+      scrollRaf = requestAnimationFrame(emitScroll);
+    },
+    { passive: true, capture: true },
+  );
+
+  async function handleCaptureRequest(event) {
+    const requestId = event.data.requestId;
+    const scrollX = window.scrollX;
+    const scrollY = window.scrollY;
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+
+    function postResult(dataUrl) {
+      postToTrustedTop({
+        type: "INLINE_EDIT_SCREENSHOT_RESULT",
+        requestId,
+        dataUrl,
+        scrollX,
+        scrollY,
+      });
+    }
+
+    try {
+      // Wait for any pending web fonts to resolve so both inline metrics and
+      // the @font-face inlining below see the same loaded faces.
+      if (document.fonts && document.fonts.ready) {
+        try {
+          await document.fonts.ready;
+        } catch (_error) {}
+      }
+
+      const clone = document.documentElement.cloneNode(true);
+      inlineAll(document.documentElement, clone);
+
+      const removedNodes = clone.querySelectorAll("script,link[rel=\"stylesheet\"],style");
+      for (let index = 0; index < removedNodes.length; index += 1) {
+        removedNodes[index].remove();
+      }
+
+      stripExternal(clone);
+
+      // Re-embed web fonts as data-URI @font-face rules so the SVG rasterizer
+      // can resolve them — external font URLs aren't fetched during
+      // foreignObject rendering, which would otherwise force a fallback face
+      // and change text metrics.
+      const inlinedFontCss = await buildInlinedFontCss();
+      if (inlinedFontCss) {
+        const styleEl = document.createElement("style");
+        styleEl.textContent = inlinedFontCss;
+        const head = clone.querySelector("head");
+        if (head) head.appendChild(styleEl);
+        else clone.insertBefore(styleEl, clone.firstChild);
+      }
+
+      const html = new XMLSerializer().serializeToString(clone);
+      const svg =
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">` +
+        '<foreignObject width="100%" height="100%">' +
+        `<div xmlns="http://www.w3.org/1999/xhtml" style="width:${width}px;height:${height}px;overflow:hidden">` +
+        `<div style="position:relative;left:-${scrollX}px;top:-${scrollY}px">` +
+        html +
+        "</div></div></foreignObject></svg>";
+      const svgUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+      const image = new Image();
+      image.onload = function () {
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext("2d").drawImage(image, 0, 0);
+        postResult(canvas.toDataURL("image/png"));
+      };
+      image.onerror = function () {
+        postResult(null);
+      };
+      image.src = svgUrl;
+    } catch (_error) {
+      postResult(null);
+    }
+  }
+
+  window.addEventListener("message", function (event) {
+    if (!event.data) return;
+    // Only accept messages from the direct parent frame. Blocks sibling /
+    // unrelated-window postMessage senders that could otherwise reach us.
+    if (event.source !== window.parent) return;
+
+    const trustedParentOrigin = getTrustedParentOrigin(event);
+    if (!trustedParentOrigin) return;
+    trustedTopOrigin = trustedParentOrigin;
+
+    if (event.data.type === "INLINE_EDIT_SCROLL_START") {
+      scrollForwarding = true;
+      emitScroll();
+      return;
+    }
+
+    if (event.data.type === "INLINE_EDIT_SCROLL_STOP") {
+      scrollForwarding = false;
+      if (scrollRaf) cancelAnimationFrame(scrollRaf);
+      scrollRaf = 0;
+      return;
+    }
+
+    if (event.data.type !== "INLINE_EDIT_CAPTURE_REQUEST") return;
+
+    handleCaptureRequest(event);
+  });
+})();
+
+
+</script></body>
+</html>
