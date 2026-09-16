@@ -744,6 +744,95 @@ can only push or pull along its own axis. That assumption is exactly
 right for a truss, and it is exactly what let us describe each member
 with a single local stiffness <span class="math inline">\(k=EA/L\)</span>
 and a single local degree of freedom per node.</p>
+
+<h3 id="lec3b-0-1-beam-theory-refresher">A refresher: Euler&ndash;Bernoulli beam theory</h3>
+<p>From your Strength of Materials course you know another type of
+element: beams. Unlike a truss bar, a beam resists <strong>bending</strong>
+as well as (or instead of) axial force, and it is worth restating the
+key result briefly here, since <a href="#lec3b-deriving-the-bending-block">the
+bending-block derivation below</a> leans on it directly.</p>
+<p>Euler&ndash;Bernoulli beam theory rests on a single kinematic
+assumption: <strong>plane cross-sections that start out perpendicular to
+the beam's axis remain plane and perpendicular to the deformed
+axis</strong> &mdash; they rotate rigidly with the bending, without
+warping or shearing. If <span class="math inline">\(v(x)\)</span> is the
+transverse deflection of the neutral axis, this assumption fixes the
+axial displacement of every other point in the cross-section:</p>
+<p><span class="math display">\[
+u(x,y) = -y\,\frac{dv}{dx}, \qquad \varepsilon_x = \frac{\partial u}{\partial x} = -y\,\frac{d^2v}{dx^2}
+\]</span></p>
+<p>where <span class="math inline">\(y\)</span> is the distance from the
+neutral axis and <span class="math inline">\(d^2v/dx^2\)</span> is the
+beam's curvature, <span class="math inline">\(\kappa\)</span>. Applying
+Hooke's law (<span class="math inline">\(\sigma_x=E\varepsilon_x\)</span>) and integrating the resulting
+stress over the cross-section &mdash; <span class="math inline">\(M=\int_A \sigma_x\,y\,dA\)</span> &mdash; gives the
+moment&ndash;curvature relation that everything in this lecture is
+built on:</p>
+<p><span class="math display">\[
+M(x) = EI\,\frac{d^2v}{dx^2}
+\]</span></p>
+<p>where <span class="math inline">\(I=\int_A y^2\,dA\)</span> is the
+section's second moment of area. Combining this with the equilibrium
+relations <span class="math inline">\(dM/dx=V\)</span> and <span class="math inline">\(dV/dx=-p\)</span>, where <span class="math inline">\(p(x)\)</span> is the
+distributed transverse load (a pressure, i.e. force per unit length)
+acting on the beam, gives the governing beam
+equation</p>
+<p><span class="math display">\[
+EI\,v''''(x) = p(x),
+\]</span></p>
+<p>which reappears explicitly, with <span class="math inline">\(p=0\)</span>, in the bending-block derivation below.</p>
+<figure>
+<svg viewBox="0 0 700 480" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:700px;height:auto;font-family:inherit;" role="img" aria-labelledby="beamTheoryTitle beamTheoryDesc"><title id="beamTheoryTitle">Beam bending and the resulting stress distribution</title><desc id="beamTheoryDesc">A simply supported beam sags under a central point load. The dashed neutral axis stretches into a shallow curve while carrying zero stress. A zoomed cross-section at midspan shows stress varying linearly through the depth: maximum compression at the top fiber, zero at the neutral axis, maximum tension at the bottom fiber.</desc>
+  <defs>
+    <marker id="beamMomentArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#1e2430"/>
+    </marker>
+  </defs>
+
+  <line x1="420" y1="150" x2="420" y2="230" stroke="#1e2430" stroke-width="1.5" marker-end="url(#beamMomentArrow)"/>
+  <text x="420" y="138" text-anchor="middle" font-size="14" font-weight="600" fill="#1e2430">P</text>
+
+  <path d="M220,195 Q420,235 620,195 L620,235 Q420,275 220,235 Z" fill="#ffffff" stroke="#1e2430" stroke-width="1"/>
+  <path d="M220,215 Q420,255 620,215" fill="none" stroke="#4a5264" stroke-width="1" stroke-dasharray="4,4"/>
+
+  <polygon points="200,235 240,235 220,215" fill="#1e2430"/>
+  <line x1="190" y1="238" x2="250" y2="238" stroke="#1e2430" stroke-width="1.5"/>
+  <text x="220" y="258" text-anchor="middle" font-size="12" fill="#4a5264">Pin support</text>
+
+  <polygon points="600,235 640,235 620,215" fill="#1e2430"/>
+  <circle cx="612" cy="240" r="4" fill="none" stroke="#1e2430" stroke-width="1"/>
+  <circle cx="628" cy="240" r="4" fill="none" stroke="#1e2430" stroke-width="1"/>
+  <text x="620" y="258" text-anchor="middle" font-size="12" fill="#4a5264">Roller support</text>
+
+  <line x1="420" y1="235" x2="420" y2="330" stroke="#4a5264" stroke-width="1" stroke-dasharray="3,3"/>
+  <text x="420" y="316" text-anchor="middle" font-size="12" fill="#4a5264">Cross-section at midspan</text>
+
+  <rect x="400" y="330" width="40" height="120" rx="4" fill="#e4e0da" stroke="#1e2430" stroke-width="1"/>
+  <line x1="340" y1="390" x2="580" y2="390" stroke="#4a5264" stroke-width="1" stroke-dasharray="4,4"/>
+
+  <polygon points="440,330 440,390 540,330" fill="#3b7dd8" fill-opacity="0.55" stroke="#3b7dd8" stroke-width="1"/>
+  <polygon points="440,390 440,450 540,450" fill="#7a4a63" fill-opacity="0.55" stroke="#7a4a63" stroke-width="1"/>
+
+  <text x="550" y="350" font-size="12.5" fill="#1e2430">Compression</text>
+  <text x="550" y="390" font-size="12.5" fill="#1e2430">Neutral axis</text>
+  <text x="550" y="430" font-size="12.5" fill="#1e2430">Tension</text>
+</svg>
+<figcaption>Left/top: a simply supported beam sags under a central
+load <span class="math inline">\(P\)</span>; the dashed curve through
+the middle is the neutral axis, which carries zero stress even as it
+bends. Bottom: the linear stress distribution at the midspan
+cross-section &mdash; maximum compression at the top fiber, zero at
+the neutral axis, maximum tension at the bottom fiber. Integrating
+this triangular distribution over the cross-section is exactly what
+produces <span class="math inline">\(M=EI\,v''(x)\)</span> above.</figcaption>
+</figure>
+<p>A 2D frame element, as we'll build below, is essentially this beam
+element and the axial rod (spring-like <span class="math inline">\(k=EA/L\)</span>) element from the truss lecture,
+combined into a single member that shares nodes between the two
+behaviors — which is exactly why the frame element's local stiffness
+matrix below splits cleanly into an axial block and a bending
+block.</p>
+
 <p>A <strong>frame</strong> relaxes that assumption in one specific way:
 the joints are <strong>rigid</strong> (welded or fully bolted) rather than
 pinned, so members meeting at a joint are forced to <strong>rotate
@@ -912,7 +1001,7 @@ v(x) = a_1 + a_2x + a_3x^2 + a_4x^3
 <blockquote>
 <p><strong>Why a cubic, and why it's exact here:</strong> for a
 prismatic Euler&ndash;Bernoulli beam with no distributed load along its
-length, the governing equation is <span class="math inline">\(EI\,v''''(x)=w(x)=0\)</span>. Integrating <span class="math inline">\(v''''=0\)</span> four times gives exactly a
+length, the governing equation is <span class="math inline">\(EI\,v''''(x)=0\)</span>. Integrating <span class="math inline">\(v''''=0\)</span> four times gives exactly a
 cubic. So this is not an approximation for the frame members in this
 lecture's worked example (no distributed load) — it is the exact
 Euler&ndash;Bernoulli solution. (It becomes an approximation, in the
@@ -958,7 +1047,7 @@ four shape functions instead of two, because matching both displacement
 <p><strong>Step 3 &mdash; moment and shear from curvature.</strong>
 For Euler&ndash;Bernoulli bending, two elementary relations from mechanics
 of materials connect the deflection to the internal bending moment and
-shear &mdash; pure statics, with no reference to energy:</p>
+shear:</p>
 <p><span class="math display">\[
 M(x) = EI\,v''(x), \qquad V(x) = \frac{dM}{dx} = EI\,v'''(x)
 \]</span></p>
@@ -1005,15 +1094,15 @@ V_2=-\tfrac{12EI}{L^3}v_1-\tfrac{6EI}{L^2}\theta_1+\tfrac{12EI}{L^3}v_2-\tfrac{6
 M_2=\tfrac{6EI}{L^2}v_1+\tfrac{2EI}{L}\theta_1-\tfrac{6EI}{L^2}v_2+\tfrac{4EI}{L}\theta_2
 \]</span></p>
 <p>&mdash; exactly the bending block quoted at the top of this section,
-recovered entirely from equilibrium and the moment&ndash;curvature relation,
-without ever forming a strain-energy expression. This equilibrium
-approach builds the stiffness matrix by asking what force is needed to
-hold a given displacement shape in balance &mdash; the same question a
-strain-energy (Rayleigh&ndash;Ritz) approach answers by asking how much
-work is stored in that shape. For a linear elastic member the two
-questions have the same answer, which is a useful fact to keep in mind
-before the Energy Methods lecture formalizes the connection between
-energy minimization and equilibrium.</p>
+recovered entirely from equilibrium and the moment&ndash;curvature relation:</p>
+<p><span class="math display">\[
+\frac{EI}{L^3}\begin{bmatrix}
+12 &amp; 6L &amp; -12 &amp; 6L\\
+6L &amp; 4L^2 &amp; -6L &amp; 2L^2\\
+-12 &amp; -6L &amp; 12 &amp; -6L\\
+6L &amp; 2L^2 &amp; -6L &amp; 4L^2
+\end{bmatrix}
+\]</span></p>
 <p>Interleaving the axial and bending blocks in the local DOF order
 <span class="math inline">\(\{u'\}^{(e)}=\{u_i',v_i',\theta_i',u_j',v_j',\theta_j'\}^T\)</span>
 gives the full local element stiffness matrix:</p>
@@ -3960,47 +4049,16 @@ of the translational stiffness, not a claim that a real <span class="math inline
 (function () {
   var toggle = document.getElementById('navToggle');
   var sidebar = document.getElementById('sidebar');
-  var mobileQuery = window.matchMedia('(max-width: 760px)');
-
-  function syncSidebarA11y() {
-    if (!mobileQuery.matches) {
-      sidebar.removeAttribute('aria-hidden');
-      if ('inert' in sidebar) sidebar.inert = false;
-      return;
-    }
-    var open = sidebar.classList.contains('open');
-    sidebar.setAttribute('aria-hidden', open ? 'false' : 'true');
-    if ('inert' in sidebar) sidebar.inert = !open;
-  }
-
-  syncSidebarA11y();
-  if (mobileQuery.addEventListener) {
-    mobileQuery.addEventListener('change', syncSidebarA11y);
-  } else if (mobileQuery.addListener) {
-    mobileQuery.addListener(syncSidebarA11y);
-  }
-  window.addEventListener('resize', syncSidebarA11y);
-
   toggle.addEventListener('click', function () {
-    sidebar.classList.toggle('open');
-    syncSidebarA11y();
-    toggle.setAttribute('aria-expanded', sidebar.classList.contains('open') ? 'true' : 'false');
+    var open = sidebar.classList.toggle('open');
+    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
   });
   var links = Array.prototype.slice.call(document.querySelectorAll('.toc-link'));
   links.forEach(function (l) {
     l.addEventListener('click', function () {
       sidebar.classList.remove('open');
       toggle.setAttribute('aria-expanded', 'false');
-      syncSidebarA11y();
     });
-  });
-  document.addEventListener('keydown', function (event) {
-    if (event.key === 'Escape' && sidebar.classList.contains('open')) {
-      sidebar.classList.remove('open');
-      toggle.setAttribute('aria-expanded', 'false');
-      syncSidebarA11y();
-      toggle.focus();
-    }
   });
 })();
 </script>
