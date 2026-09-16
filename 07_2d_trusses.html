@@ -69,11 +69,25 @@ body {
   flex: 0 0 var(--sidebar-width);
   height: 100vh;
   overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.28) var(--sidebar-bg);
   background: var(--sidebar-bg);
   color: var(--sidebar-ink);
   padding: 34px 22px 40px;
   font-family: "Helvetica Neue", Arial, sans-serif;
 }
+
+.sidebar::-webkit-scrollbar { width: 9px; }
+.sidebar::-webkit-scrollbar-track { background: var(--sidebar-bg); }
+.sidebar::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.28);
+  border-radius: 5px;
+  border: 2px solid var(--sidebar-bg);
+}
+.sidebar::-webkit-scrollbar-thumb:hover { background-color: rgba(255, 255, 255, 0.45); }
 
 .sidebar-head { margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid var(--sidebar-line); }
 
@@ -603,9 +617,9 @@ span.num, span.swatch {
   font-family: "Helvetica Neue", Arial, sans-serif;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  font-size: 0.66rem;
+  font-size: 0.68rem;
+  color: var(--sidebar-sub);
   font-weight: 700;
-  color: var(--sidebar-active);
 }
 
 .toc-link.disabled {
@@ -616,7 +630,7 @@ span.num, span.swatch {
 .toc-link.disabled:hover { background: none; color: var(--sidebar-sub); }
 
 .toc-soon {
-  font-family: "SF Mono", Consolas, monospace;
+  font-family: "Helvetica Neue", Arial, sans-serif;
   font-size: 0.6rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -632,7 +646,7 @@ span.num, span.swatch {
 
 <body>
 <a href="#top" id="top"></a>
-<button id="navToggle" class="nav-toggle" aria-label="Toggle navigation" aria-expanded="false">&#9776; Contents</button>
+<button id="navToggle" class="nav-toggle" aria-label="Toggle navigation" aria-expanded="false" aria-controls="sidebar">&#9776; Contents</button>
 <div class="shell">
   <nav class="sidebar" id="sidebar">
     <div class="sidebar-head">
@@ -640,25 +654,30 @@ span.num, span.swatch {
       <h1 class="course-title">Fundamentals of the<br />Finite Element Method</h1>
       <p class="course-author">Prof. Lev Khazanovich</p>
     </div>
-        <ul class="toc-list">
-      <li><a href="00_table_of_contents.html" class="toc-link"><span class="toc-num">TOC</span><span class="toc-text"><span class="toc-title">Table of Contents</span><span class="toc-sub">All lectures</span></span></a></li>
-      <li><a href="01_introduction.html" class="toc-link"><span class="toc-num">01</span><span class="toc-text"><span class="toc-title">Introduction</span><span class="toc-sub">Course overview &amp; FEM basics</span></span></a></li>
-      <li class="toc-group"><span class="toc-group-label">Part 1 · Mathematical Foundations for FEM</span></li>
-      <li><a href="02_vectors_matrices_for_fem.html" class="toc-link"><span class="toc-num">1A</span><span class="toc-text"><span class="toc-title">Vectors and Matrices</span><span class="toc-sub">Linear algebra for FEM</span></span></a></li>
-      <li><a href="03_interpolation.html" class="toc-link"><span class="toc-num">2A</span><span class="toc-text"><span class="toc-title">Interpolation and Approximation</span><span class="toc-sub">Shape functions &amp; approximation theory</span></span></a></li>
-      <li><a href="04_differentiation_integration.html" class="toc-link"><span class="toc-num">3A</span><span class="toc-text"><span class="toc-title">Differentiation and Integration</span><span class="toc-sub">Numerical calculus for FEM</span></span></a></li>
-      <li><div class="toc-link disabled"><span class="toc-num">4A</span><span class="toc-text"><span class="toc-title">Introduction to Python and Colab<span class="toc-soon">Soon</span></span><span class="toc-sub">Coming soon</span></span></div></li>
-      <li class="toc-group"><span class="toc-group-label">Part 2 · The Stiffness Method</span></li>
-      <li><a href="06_1d_spring_systems.html" class="toc-link"><span class="toc-num">2</span><span class="toc-text"><span class="toc-title">1-D Spring Systems</span><span class="toc-sub">The Direct Stiffness Method</span></span></a></li>
-      <li><a href="07_2d_trusses.html" class="toc-link active"><span class="toc-num">3</span><span class="toc-text"><span class="toc-title">2-D Trusses</span><span class="toc-sub">Transformations &amp; assembly</span></span></a></li>
-      <li><a href="08_2d_frames.html" class="toc-link"><span class="toc-num">4</span><span class="toc-text"><span class="toc-title">2-D Frames</span><span class="toc-sub">Frame elements &amp; assembly</span></span></a></li>
-      <li class="toc-group"><span class="toc-group-label">Part 3</span></li>
-      <li><a href="09_energy_methods_fe_formulation.html" class="toc-link"><span class="toc-num">5</span><span class="toc-text"><span class="toc-title">Energy Methods and the Finite Element Formulation</span><span class="toc-sub">Minimum potential energy, frame element &amp; Rayleigh–Ritz</span></span></a></li>
-      <li class="toc-group"><span class="toc-group-label">Part 4 · From 1-D/2-D Structures to 3-D Continuum FEM</span></li>
-      <li><a href="11_hookes_law_constitutive_matrix.html" class="toc-link"><span class="toc-num">6</span><span class="toc-text"><span class="toc-title">Hooke's Law and the Constitutive Matrix</span><span class="toc-sub">3-D constitutive relations</span></span></a></li>
-      <li><a href="12_3d_finite_element_formulation.html" class="toc-link"><span class="toc-num">7</span><span class="toc-text"><span class="toc-title">3-D Finite Element Formulation</span><span class="toc-sub">From 1D/2D structures to 3D continuum elements</span></span></a></li>
+    <ul class="toc-list">
+<li><a href="00_table_of_contents.html" class="toc-link"><span class="toc-num">TOC</span><span class="toc-text"><span class="toc-title">Table of Contents</span><span class="toc-sub">All lectures</span></span></a></li>
+<li><a href="01_introduction.html" class="toc-link"><span class="toc-num">01</span><span class="toc-text"><span class="toc-title">Introduction</span><span class="toc-sub">Course overview &amp; FEM basics</span></span></a></li>
+<li class="toc-group"><span class="toc-group-label">Part 1 &middot; Mathematical Foundations for FEM</span></li>
+<li><a href="02_vectors_matrices_for_fem.html" class="toc-link"><span class="toc-num">1A</span><span class="toc-text"><span class="toc-title">Vectors and Matrices</span><span class="toc-sub">Linear algebra for FEM</span></span></a></li>
+<li><a href="03_interpolation.html" class="toc-link"><span class="toc-num">2A</span><span class="toc-text"><span class="toc-title">Interpolation and Approximation</span><span class="toc-sub">Shape functions &amp; approximation theory</span></span></a></li>
+<li><a href="04_differentiation_integration.html" class="toc-link"><span class="toc-num">3A</span><span class="toc-text"><span class="toc-title">Differentiation and Integration</span><span class="toc-sub">Numerical calculus for FEM</span></span></a></li>
+<li><div class="toc-link disabled"><span class="toc-num">4A</span><span class="toc-text"><span class="toc-title">Introduction to Python and Colab<span class="toc-soon">Soon</span></span><span class="toc-sub">Coming soon</span></span></div></li>
+<li class="toc-group"><span class="toc-group-label">Part 2 &middot; The Stiffness Method</span></li>
+<li><a href="06_1d_spring_systems.html" class="toc-link"><span class="toc-num">2</span><span class="toc-text"><span class="toc-title">1-D Spring Systems</span><span class="toc-sub">The Direct Stiffness Method</span></span></a></li>
+<li><a href="07_2d_trusses.html" class="toc-link active"><span class="toc-num">3</span><span class="toc-text"><span class="toc-title">2-D Trusses</span><span class="toc-sub">Transformations &amp; assembly</span></span></a></li>
+<li><a href="08_2d_frames.html" class="toc-link"><span class="toc-num">4</span><span class="toc-text"><span class="toc-title">2-D Frames</span><span class="toc-sub">Frame elements &amp; assembly</span></span></a></li>
+<li class="toc-group"><span class="toc-group-label">Part 3</span></li>
+<li><a href="09_energy_methods_fe_formulation.html" class="toc-link"><span class="toc-num">5</span><span class="toc-text"><span class="toc-title">Energy Methods and the Finite Element Formulation</span><span class="toc-sub">Minimum potential energy, frame element &amp; Rayleigh&ndash;Ritz</span></span></a></li>
+<li class="toc-group"><span class="toc-group-label">Part 4 &middot; From 1-D/2-D Structures to 3-D Continuum FEM</span></li>
+<li><a href="10_constitutive_relations.html" class="toc-link"><span class="toc-num">6</span><span class="toc-text"><span class="toc-title">Constitutive Relations</span><span class="toc-sub">3-D Hooke&rsquo;s law &rarr; plane stress/strain</span></span></a></li>
+<li><a href="11_3d_continuum_formulation.html" class="toc-link"><span class="toc-num">7</span><span class="toc-text"><span class="toc-title">3-D Continuum Formulation</span><span class="toc-sub">Kinematics, energy principle, element equations</span></span></a></li>
+<li class="toc-group"><span class="toc-group-label">Part 5 &middot; Two-Dimensional Elements</span></li>
+<li><a href="12_2d_elements_cst_bilinear.html" class="toc-link"><span class="toc-num">8</span><span class="toc-text"><span class="toc-title">2-D Elements &mdash; CST &amp; Bilinear</span><span class="toc-sub">Shape functions, stiffness, worked example</span></span></a></li>
+<li><div class="toc-link disabled"><span class="toc-num">9</span><span class="toc-text"><span class="toc-title">The Isoparametric Element<span class="toc-soon">Soon</span></span><span class="toc-sub">Coming soon</span></span></div></li>
+<li><div class="toc-link disabled"><span class="toc-num">10</span><span class="toc-text"><span class="toc-title">Lagrange Interpolation<span class="toc-soon">Soon</span></span><span class="toc-sub">Coming soon</span></span></div></li>
+<li><div class="toc-link disabled"><span class="toc-num">11</span><span class="toc-text"><span class="toc-title">Practical Considerations<span class="toc-soon">Soon</span></span><span class="toc-sub">Coming soon</span></span></div></li>
     </ul>
-    <p class="sidebar-foot">11-part outline &middot; 10 lectures published</p>
+    <p class="sidebar-foot">15-part outline &middot; 11 lectures published</p>
   </nav>
   <main class="content" id="content">
 
@@ -3920,16 +3939,47 @@ energy) and both visibly present here as a check on the algebra.</p>
 (function () {
   var toggle = document.getElementById('navToggle');
   var sidebar = document.getElementById('sidebar');
+  var mobileQuery = window.matchMedia('(max-width: 760px)');
+
+  function syncSidebarA11y() {
+    if (!mobileQuery.matches) {
+      sidebar.removeAttribute('aria-hidden');
+      if ('inert' in sidebar) sidebar.inert = false;
+      return;
+    }
+    var open = sidebar.classList.contains('open');
+    sidebar.setAttribute('aria-hidden', open ? 'false' : 'true');
+    if ('inert' in sidebar) sidebar.inert = !open;
+  }
+
+  syncSidebarA11y();
+  if (mobileQuery.addEventListener) {
+    mobileQuery.addEventListener('change', syncSidebarA11y);
+  } else if (mobileQuery.addListener) {
+    mobileQuery.addListener(syncSidebarA11y);
+  }
+  window.addEventListener('resize', syncSidebarA11y);
+
   toggle.addEventListener('click', function () {
-    var open = sidebar.classList.toggle('open');
-    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    sidebar.classList.toggle('open');
+    syncSidebarA11y();
+    toggle.setAttribute('aria-expanded', sidebar.classList.contains('open') ? 'true' : 'false');
   });
   var links = Array.prototype.slice.call(document.querySelectorAll('.toc-link'));
   links.forEach(function (l) {
     l.addEventListener('click', function () {
       sidebar.classList.remove('open');
       toggle.setAttribute('aria-expanded', 'false');
+      syncSidebarA11y();
     });
+  });
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape' && sidebar.classList.contains('open')) {
+      sidebar.classList.remove('open');
+      toggle.setAttribute('aria-expanded', 'false');
+      syncSidebarA11y();
+      toggle.focus();
+    }
   });
 })();
 </script>

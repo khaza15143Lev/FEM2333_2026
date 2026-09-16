@@ -67,11 +67,25 @@ body {
   flex: 0 0 var(--sidebar-width);
   height: 100vh;
   overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.28) var(--sidebar-bg);
   background: var(--sidebar-bg);
   color: var(--sidebar-ink);
   padding: 34px 22px 40px;
   font-family: "Helvetica Neue", Arial, sans-serif;
 }
+
+.sidebar::-webkit-scrollbar { width: 9px; }
+.sidebar::-webkit-scrollbar-track { background: var(--sidebar-bg); }
+.sidebar::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.28);
+  border-radius: 5px;
+  border: 2px solid var(--sidebar-bg);
+}
+.sidebar::-webkit-scrollbar-thumb:hover { background-color: rgba(255, 255, 255, 0.45); }
 
 .sidebar-head { margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid var(--sidebar-line); }
 
@@ -537,7 +551,7 @@ span.num, span.swatch {
       <li><a href="02_vectors_matrices_for_fem.html" class="toc-link"><span class="toc-num">1A</span><span class="toc-text"><span class="toc-title">Vectors and Matrices</span><span class="toc-sub">Linear algebra for FEM</span></span></a></li>
       <li><a href="03_interpolation.html" class="toc-link"><span class="toc-num">2A</span><span class="toc-text"><span class="toc-title">Interpolation and Approximation</span><span class="toc-sub">Shape functions &amp; approximation theory</span></span></a></li>
       <li><a href="04_differentiation_integration.html" class="toc-link"><span class="toc-num">3A</span><span class="toc-text"><span class="toc-title">Differentiation and Integration</span><span class="toc-sub">Numerical calculus for FEM</span></span></a></li>
-      <li><div class="toc-link disabled"><span class="toc-num">4A</span><span class="toc-text"><span class="toc-title">Introduction to Python and Colab<span class="toc-soon">Soon</span></span><span class="toc-sub">Coming soon</span></span></div></li>
+      <li><a href="05_python_colab_intro.html" class="toc-link"><span class="toc-num">4A</span><span class="toc-text"><span class="toc-title">Introduction to Python and Colab</span><span class="toc-sub">Python &amp; Google Colab primer</span></span></a></li>
       <li class="toc-group"><span class="toc-group-label">Part 2 · The Stiffness Method</span></li>
       <li><a href="06_1d_spring_systems.html" class="toc-link"><span class="toc-num">2</span><span class="toc-text"><span class="toc-title">1-D Spring Systems</span><span class="toc-sub">The Direct Stiffness Method</span></span></a></li>
       <li><a href="07_2d_trusses.html" class="toc-link"><span class="toc-num">3</span><span class="toc-text"><span class="toc-title">2-D Trusses</span><span class="toc-sub">Transformations &amp; assembly</span></span></a></li>
@@ -545,10 +559,15 @@ span.num, span.swatch {
       <li class="toc-group"><span class="toc-group-label">Part 3</span></li>
       <li><a href="09_energy_methods_fe_formulation.html" class="toc-link"><span class="toc-num">5</span><span class="toc-text"><span class="toc-title">Energy Methods and the Finite Element Formulation</span><span class="toc-sub">Minimum potential energy, frame element &amp; Rayleigh–Ritz</span></span></a></li>
       <li class="toc-group"><span class="toc-group-label">Part 4 · From 1-D/2-D Structures to 3-D Continuum FEM</span></li>
-      <li><a href="11_hookes_law_constitutive_matrix.html" class="toc-link"><span class="toc-num">6</span><span class="toc-text"><span class="toc-title">Hooke's Law and the Constitutive Matrix</span><span class="toc-sub">3-D constitutive relations</span></span></a></li>
-      <li><a href="12_3d_finite_element_formulation.html" class="toc-link"><span class="toc-num">7</span><span class="toc-text"><span class="toc-title">3-D Finite Element Formulation</span><span class="toc-sub">From 1D/2D structures to 3D continuum elements</span></span></a></li>
+      <li><a href="10_constitutive_relations.html" class="toc-link"><span class="toc-num">6</span><span class="toc-text"><span class="toc-title">Constitutive Relations</span><span class="toc-sub">3-D Hooke&rsquo;s law &rarr; plane stress/strain</span></span></a></li>
+      <li><a href="11_3d_continuum_formulation.html" class="toc-link"><span class="toc-num">7</span><span class="toc-text"><span class="toc-title">3-D Continuum Formulation</span><span class="toc-sub">Kinematics, energy principle, element equations</span></span></a></li>
+      <li class="toc-group"><span class="toc-group-label">Part 5 · Two-Dimensional Elements</span></li>
+      <li><a href="12_2d_elements_cst_bilinear.html" class="toc-link"><span class="toc-num">8</span><span class="toc-text"><span class="toc-title">2-D Elements &mdash; CST &amp; Bilinear</span><span class="toc-sub">Shape functions, stiffness, worked example</span></span></a></li>
+      <li><div class="toc-link disabled"><span class="toc-num">9</span><span class="toc-text"><span class="toc-title">The Isoparametric Element<span class="toc-soon">Soon</span></span><span class="toc-sub">Coming soon</span></span></div></li>
+      <li><div class="toc-link disabled"><span class="toc-num">10</span><span class="toc-text"><span class="toc-title">Lagrange Interpolation<span class="toc-soon">Soon</span></span><span class="toc-sub">Coming soon</span></span></div></li>
+      <li><div class="toc-link disabled"><span class="toc-num">11</span><span class="toc-text"><span class="toc-title">Practical Considerations<span class="toc-soon">Soon</span></span><span class="toc-sub">Coming soon</span></span></div></li>
     </ul>
-    <p class="sidebar-foot">11-part outline &middot; 10 lectures published</p>
+    <p class="sidebar-foot">15-part outline &middot; 12 lectures published</p>
   </nav>
   <main class="content" id="content">
 
@@ -556,7 +575,7 @@ span.num, span.swatch {
 <header class="masthead">
 <div class="kicker">CEE&#8209;2333 &middot; Fundamentals of the Finite Element Method</div>
 <h1>Table of Contents</h1>
-<p class="subtitle">Combined Course Notes &middot; 11-part outline &middot; 10 lectures published</p>
+<p class="subtitle">Combined Course Notes &middot; 15-part outline &middot; 12 lectures published</p>
 <p class="byline">Lev Khazanovich &nbsp;|&nbsp; University of Pittsburgh, Swanson School of Engineering</p>
 </header>
 <div class="page">
@@ -565,7 +584,7 @@ span.num, span.swatch {
 <div class="callout" style="margin:1.2em 0;"><span class="eyebrow">Lecture 1A</span><h3 style="margin:0.2em 0 0.3em;"><a href="02_vectors_matrices_for_fem.html">Vectors and Matrices</a></h3><p style="margin:0;color:var(--sub);">Linear algebra for FEM</p></div>
 <div class="callout" style="margin:1.2em 0;"><span class="eyebrow">Lecture 2A</span><h3 style="margin:0.2em 0 0.3em;"><a href="03_interpolation.html">Interpolation and Approximation</a></h3><p style="margin:0;color:var(--sub);">Shape functions & approximation theory</p></div>
 <div class="callout" style="margin:1.2em 0;"><span class="eyebrow">Lecture 3A</span><h3 style="margin:0.2em 0 0.3em;"><a href="04_differentiation_integration.html">Differentiation and Integration</a></h3><p style="margin:0;color:var(--sub);">Numerical calculus for FEM</p></div>
-<div class="callout" style="margin:1.2em 0;opacity:0.6;"><span class="eyebrow">Lecture 4A <span class="toc-soon" style="color:var(--sub);border-color:var(--line);">Soon</span></span><h3 style="margin:0.2em 0 0.3em;color:var(--sub);">Introduction to Python and Colab</h3><p style="margin:0;color:var(--sub);">Coming soon</p></div>
+<div class="callout" style="margin:1.2em 0;"><span class="eyebrow">Lecture 4A</span><h3 style="margin:0.2em 0 0.3em;"><a href="05_python_colab_intro.html">Introduction to Python and Colab</a></h3><p style="margin:0;color:var(--sub);">Python &amp; Google Colab primer</p></div>
 <h2 style="margin-bottom:0.2em;">Part 2 &middot; The Stiffness Method</h2><p style="margin:0 0 1em;color:var(--sub);font-family:'Helvetica Neue',Arial,sans-serif;font-size:0.85rem;">Grouping heading only &mdash; there is no standalone page for this part; see the chapters below.</p>
 <div class="callout" style="margin:1.2em 0;"><span class="eyebrow">Lecture 2</span><h3 style="margin:0.2em 0 0.3em;"><a href="06_1d_spring_systems.html">1-D Spring Systems</a></h3><p style="margin:0;color:var(--sub);">The Direct Stiffness Method</p></div>
 <div class="callout" style="margin:1.2em 0;"><span class="eyebrow">Lecture 3</span><h3 style="margin:0.2em 0 0.3em;"><a href="07_2d_trusses.html">2-D Trusses</a></h3><p style="margin:0;color:var(--sub);">Transformations & assembly</p></div>
@@ -573,14 +592,18 @@ span.num, span.swatch {
 <h2 style="margin-bottom:0.2em;">Part 3 &middot; Energy Methods and the Finite Element Formulation</h2>
 <div class="callout" style="margin:1.2em 0;"><span class="eyebrow">Lecture 5</span><h3 style="margin:0.2em 0 0.3em;"><a href="09_energy_methods_fe_formulation.html">Energy Methods and the Finite Element Formulation</a></h3><p style="margin:0;color:var(--sub);">Minimum potential energy, frame element & Rayleigh–Ritz</p></div>
 <h2 style="margin-bottom:0.2em;">Part 4 &middot; From 1-D/2-D Structures to 3-D Continuum FEM</h2><p style="margin:0 0 1em;color:var(--sub);font-family:'Helvetica Neue',Arial,sans-serif;font-size:0.85rem;">Grouping heading only &mdash; there is no standalone page for this part; see the chapters below.</p>
-<div class="callout" style="margin:1.2em 0;"><span class="eyebrow">Lecture 6</span><h3 style="margin:0.2em 0 0.3em;"><a href="11_hookes_law_constitutive_matrix.html">Hooke’s Law and the Constitutive Matrix</a></h3><p style="margin:0;color:var(--sub);">3-D constitutive relations</p></div>
-<div class="callout" style="margin:1.2em 0;"><span class="eyebrow">Lecture 7</span><h3 style="margin:0.2em 0 0.3em;"><a href="12_3d_finite_element_formulation.html">3-D Finite Element Formulation</a></h3><p style="margin:0;color:var(--sub);">From 1D/2D structures to 3D continuum elements</p></div>
+<div class="callout" style="margin:1.2em 0;"><span class="eyebrow">Lecture 6</span><h3 style="margin:0.2em 0 0.3em;"><a href="10_constitutive_relations.html">Constitutive Relations</a></h3><p style="margin:0;color:var(--sub);">3-D Hooke&rsquo;s law &rarr; plane stress/strain</p></div>
+<div class="callout" style="margin:1.2em 0;"><span class="eyebrow">Lecture 7</span><h3 style="margin:0.2em 0 0.3em;"><a href="11_3d_continuum_formulation.html">3-D Continuum Formulation</a></h3><p style="margin:0;color:var(--sub);">Kinematics, energy principle, element equations</p></div>
+<h2 style="margin-bottom:0.2em;">Part 5 &middot; Two-Dimensional Elements</h2><p style="margin:0 0 1em;color:var(--sub);font-family:'Helvetica Neue',Arial,sans-serif;font-size:0.85rem;">Grouping heading only &mdash; there is no standalone page for this part; see the chapters below.</p>
+<div class="callout" style="margin:1.2em 0;"><span class="eyebrow">Lecture 8</span><h3 style="margin:0.2em 0 0.3em;"><a href="12_2d_elements_cst_bilinear.html">2-D Elements — CST &amp; Bilinear</a></h3><p style="margin:0;color:var(--sub);">Shape functions, stiffness, worked example</p></div>
+<div class="callout" style="margin:1.2em 0;opacity:0.6;"><span class="eyebrow">Lecture 9</span><h3 style="margin:0.2em 0 0.3em;">The Isoparametric Element</h3><p style="margin:0;color:var(--sub);">Coming soon</p></div>
+<div class="callout" style="margin:1.2em 0;opacity:0.6;"><span class="eyebrow">Lecture 10</span><h3 style="margin:0.2em 0 0.3em;">Lagrange Interpolation</h3><p style="margin:0;color:var(--sub);">Coming soon</p></div>
+<div class="callout" style="margin:1.2em 0;opacity:0.6;"><span class="eyebrow">Lecture 11</span><h3 style="margin:0.2em 0 0.3em;">Practical Considerations</h3><p style="margin:0;color:var(--sub);">Coming soon</p></div>
 </div>
 </section>
 <nav class="page-pager" style="display:flex;justify-content:space-between;margin:2.5em 0 0;font-family:'Helvetica Neue',Arial,sans-serif;font-size:0.9rem;"><span></span><a href="01_introduction.html">Introduction &rarr;</a></nav>
 <footer class="doc-end">
       <p>CEE 2333 — Fundamentals of the Finite Element Method · Combined Course Notes</p>
-      <p>This page was developed with the assistance of various generative AI tools.</p>
       <p><a href="#top">Back to top ↑</a></p>
     </footer>
   </main>
