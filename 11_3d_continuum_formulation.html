@@ -1609,27 +1609,6 @@ i\end{cases}\]</span></p>
 <p>and the <strong>partition of unity</strong> condition:</p>
 <p><span class="math display">\[\sum_{i=1}^n N_i(\vec x) = 1 \quad
 \text{everywhere in the element}\]</span></p>
-<p>For the 8-node hexahedron, the shape functions are typically written
-in terms of the natural coordinates <span class="math inline">\((\xi,\eta,\zeta)\)</span> introduced in the next lecture, and are
-<strong>trilinear</strong> &mdash; linear in each coordinate direction:</p>
-<p><span class="math display">\[N_i(\xi,\eta,\zeta) = \frac{1}{8}(1 \pm
-\xi)(1 \pm \eta)(1 \pm \zeta)\]</span></p>
-<p>where the sign pattern in each factor matches the sign of node <span class="math inline">\(i\)</span>&rsquo;s coordinate (e.g. the node at
-<span class="math inline">\((\xi,\eta,\zeta)=(1,1,1)\)</span> uses all
-plus signs, the node at <span class="math inline">\((-1,1,1)\)</span>
-uses a minus sign only on the <span class="math inline">\(\xi\)</span>
-factor, and so on). These same functions interpolate both the geometry
-and the displacements &mdash; the <strong>isoparametric</strong>
-concept covered in the next lecture.</p>
-<blockquote>
-<p>The shape functions above are written in the <strong>parent (natural)
-coordinates</strong>. How we map them onto a distorted physical element
-is the subject of the next lecture (<em>Isoparametric Elements</em>).
-For the derivation of <span class="math inline">\([K]\)</span> that
-follows, we only need the existence of <span class="math inline">\(N_i(\vec x)\)</span> and their derivatives &mdash; not yet the
-details of how <span class="math inline">\(\vec x\)</span> and
-<span class="math inline">\((\xi,\eta,\zeta)\)</span> relate.</p>
-</blockquote>
 <p>In matrix form, for each displacement component:</p>
 <p><span class="math display">\[u(\vec x) = [N_1(\vec x)\ N_2(\vec x)\
 \cdots\ N_n(\vec
