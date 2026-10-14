@@ -1,0 +1,2112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<!--
+  Content-Security-Policy note: this is a static, single-file document with
+  no build step, so nearly all script/style is necessarily inline. The
+  policy below is the tightest one that does not break that: it still
+  blocks plugins/objects, restricts script/font loading to this
+  document's own origin plus the one CDN host MathJax is loaded from, and
+  allows the inline <script>/<style> blocks the page itself depends on
+  (the diagrams and MathJax's own runtime style injection).
+  Note: frame-ancestors is deliberately NOT included here. Per the CSP
+  spec, browsers ignore the frame-ancestors directive when it is
+  delivered via a <meta> element — it only takes effect when sent as an
+  HTTP response header (e.g. Content-Security-Policy: frame-ancestors
+  'self'). Listing it in this meta tag would claim a protection that is
+  not actually enforced, so anti-framing protection for this page (if
+  needed) must be configured at the server/hosting layer, not here.
+-->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' https://cdnjs.cloudflare.com data:; connect-src 'self' https://cdnjs.cloudflare.com; object-src 'none'; base-uri 'self';" />
+<title>CEE 2333 — Lecture 7: 3-D Continuum Formulation</title>
+<script>
+window.MathJax = {
+  tex: {
+    inlineMath: [['\\(', '\\)'], ['$', '$']],
+    displayMath: [['$$', '$$'], ['\\[', '\\]']]
+  }
+};
+</script>
+<!--
+  MathJax dependency hardening (see task item 5):
+  - Preferred: self-host this exact pinned bundle. Download
+    https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js
+    once, commit it alongside this file (e.g. as ./vendor/mathjax/3.2.2/tex-mml-chtml.min.js),
+    and point the <script src> below at that local copy. That removes the
+    runtime dependency on a third-party CDN entirely.
+  - If the CDN copy is kept instead, it must be pinned with a Subresource
+    Integrity hash that was computed from the *exact* bytes actually
+    downloaded, e.g.:
+      curl -s https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js \
+        | openssl dgst -sha384 -binary | openssl base64 -A
+    and then set integrity="sha384-<output>" below.
+  - A candidate hash, sha384-M5jmNxKC9EVnuqeMwRHvFuYUE8Hhp0TgBruj/GZRkYtiMrCRgH7yvv5KY+Owi7TW,
+    was proposed for insertion here. It was NOT added: this editing
+    environment has no outbound network access to cdnjs.cloudflare.com
+    (direct fetch attempts were refused), so the candidate could not be
+    independently recomputed from the exact served bytes and verified to
+    match. Pasting in an unverified hash would be worse than leaving the
+    attribute out entirely — the browser silently blocks MathJax from
+    loading on any mismatch, byte-for-byte, including whitespace or a
+    trailing-newline difference — so it is intentionally omitted. Before
+    deploying this file, run the curl command above yourself (or use the
+    browser's Network tab to save the exact response body cdnjs served)
+    and confirm the resulting digest equals the candidate above; only if
+    they match, add integrity="sha384-M5jmNxKC9EVnuqeMwRHvFuYUE8Hhp0TgBruj/GZRkYtiMrCRgH7yvv5KY+Owi7TW"
+    to the <script> tag below.
+  crossorigin+referrerpolicy are safe to set unconditionally and are
+  included now so only the integrity attribute needs to be added once
+  verified.
+-->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<style>
+/* ============================================================
+   CEE 2333 — Combined Course Notes
+   Unified design system applied across all merged lectures
+   ============================================================ */
+
+:root {
+  --ink: #1e2430;
+  --sub: #4a5264;
+  --accent: #7a4a63;
+  --accent2: #3b7dd8;
+  --bg: #fbfaf8;
+  --card: #ffffff;
+  --line: #e4e0da;
+  --note-bg: #f4f0f8;
+  --note-border: #7a4a63;
+  --sidebar-bg: #23222a;
+  --sidebar-ink: #eae7e2;
+  --sidebar-sub: #9d97a8;
+  --sidebar-line: rgba(255, 255, 255, 0.1);
+  --sidebar-active: #c98fa8;
+  --sidebar-width: 300px;
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  line-height: 1.65;
+}
+
+#top { position: absolute; top: 0; }
+
+/* ---------- layout shell ---------- */
+
+.shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  width: var(--sidebar-width);
+  flex: 0 0 var(--sidebar-width);
+  height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.28) var(--sidebar-bg);
+  background: var(--sidebar-bg);
+  color: var(--sidebar-ink);
+  padding: 34px 22px 40px;
+  font-family: "Helvetica Neue", Arial, sans-serif;
+}
+
+.sidebar::-webkit-scrollbar { width: 9px; }
+.sidebar::-webkit-scrollbar-track { background: var(--sidebar-bg); }
+.sidebar::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.28);
+  border-radius: 5px;
+  border: 2px solid var(--sidebar-bg);
+}
+.sidebar::-webkit-scrollbar-thumb:hover { background-color: rgba(255, 255, 255, 0.45); }
+
+.sidebar-head { margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid var(--sidebar-line); }
+
+.course-code {
+  margin: 0 0 6px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  color: var(--sidebar-active);
+  font-weight: 700;
+}
+
+.course-title {
+  margin: 0 0 10px;
+  font-size: 1.15rem;
+  line-height: 1.35;
+  font-weight: 700;
+  color: var(--sidebar-ink);
+}
+
+.course-author {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--sidebar-sub);
+}
+
+.toc-list { list-style: none; margin: 0; padding: 0; }
+
+.toc-list li { margin-bottom: 2px; }
+
+.toc-link {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  padding: 9px 10px;
+  border-radius: 6px;
+  text-decoration: none;
+  color: var(--sidebar-sub);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.toc-link:hover { background: rgba(255, 255, 255, 0.06); color: var(--sidebar-ink); }
+
+.toc-link.active {
+  background: rgba(201, 143, 168, 0.16);
+  color: var(--sidebar-ink);
+}
+
+.toc-link.active .toc-num { color: var(--sidebar-active); }
+
+.toc-num {
+  font-family: "SF Mono", Consolas, monospace;
+  font-size: 0.72rem;
+  color: var(--sidebar-sub);
+  flex: 0 0 auto;
+  padding-top: 2px;
+}
+
+.toc-text { display: flex; flex-direction: column; gap: 2px; }
+
+.toc-title { font-size: 0.88rem; line-height: 1.3; }
+
+.toc-sub { font-size: 0.72rem; color: var(--sidebar-sub); line-height: 1.3; }
+
+.sidebar-foot {
+  margin-top: 26px;
+  padding-top: 16px;
+  border-top: 1px solid var(--sidebar-line);
+  font-size: 0.72rem;
+  color: var(--sidebar-sub);
+  letter-spacing: 0.03em;
+}
+
+.nav-toggle { display: none; }
+
+.content {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 56px 56px 120px;
+  max-width: 900px;
+}
+
+.lecture { max-width: 780px; }
+
+.lecture-marker {
+  margin: 0 0 6px;
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+hr.lecture-sep {
+  border: none;
+  border-top: 2px dashed var(--line);
+  margin: 4.5em 0;
+  max-width: 780px;
+}
+
+.doc-end {
+  margin-top: 4em;
+  padding-top: 1.4em;
+  border-top: 1px solid var(--line);
+  color: var(--sub);
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  font-size: 0.85rem;
+  text-align: center;
+  max-width: 780px;
+}
+
+.doc-end a { color: var(--accent2); }
+
+/* ---------- collapsible interactive-tool wrapper ---------- */
+
+details.tool-collapse {
+  margin: 1.6em 0;
+  max-width: 780px;
+}
+
+details.tool-collapse > summary {
+  cursor: pointer;
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--accent);
+  padding: 10px 14px;
+  background: var(--note-bg);
+  border: 1px solid var(--note-border);
+  border-radius: 4px;
+}
+
+details.tool-collapse[open] > summary { border-radius: 4px 4px 0 0; margin-bottom: 0; }
+
+details.tool-collapse > summary::-webkit-details-marker { color: var(--accent); }
+
+/* ---------- check-your-understanding prompts ---------- */
+
+details.check-prompt {
+  margin: 1.4em 0;
+  max-width: 780px;
+}
+
+details.check-prompt > summary {
+  cursor: pointer;
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #3b8f6b;
+  padding: 9px 14px;
+  background: #f0f8f4;
+  border: 1px solid #3b8f6b;
+  border-radius: 4px;
+}
+
+details.check-prompt[open] > summary { border-radius: 4px 4px 0 0; margin-bottom: 0; }
+
+details.check-prompt > summary::-webkit-details-marker { color: #3b8f6b; }
+
+details.check-prompt > div.answer {
+  padding: 0.8em 1.1em;
+  background: var(--card);
+  border: 1px solid #3b8f6b;
+  border-top: none;
+  border-radius: 0 0 4px 4px;
+  font-size: 0.92rem;
+}
+
+/* ---------- inline interactive widgets (strain calculator, B-block builder) ---------- */
+
+.calc-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px 14px;
+  margin: 1em 0;
+  max-width: 620px;
+}
+
+.calc-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  font-size: 0.8rem;
+  color: var(--sub);
+}
+
+.calc-field input {
+  font-family: "SF Mono", Consolas, monospace;
+  font-size: 0.88rem;
+  padding: 5px 7px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #fff;
+  color: var(--ink);
+  width: 100%;
+}
+
+.calc-btn {
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #fff;
+  background: var(--accent2);
+  border: none;
+  border-radius: 5px;
+  padding: 9px 16px;
+  cursor: pointer;
+  margin: 0.4em 0 1em;
+}
+
+.calc-btn:hover { background: #2f68b8; }
+
+.calc-output {
+  font-family: "SF Mono", Consolas, monospace;
+  font-size: 0.88rem;
+  background: #f4f4f0;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0.9em 1.1em;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+.calc-output .lbl { color: var(--sub); }
+.calc-output .val { color: var(--accent2); font-weight: 600; }
+
+table.b-block td {
+  text-align: center;
+  font-family: "SF Mono", Consolas, monospace;
+  font-size: 0.88rem;
+}
+
+/* ---------- visible keyboard-focus indicator ----------
+   Applies document-wide (disclosure summaries, links, buttons, inputs,
+   selects) so removing a browser default outline never leaves a control
+   with no visible focus state; :focus-visible keeps mouse/touch clicks
+   free of the ring while keyboard users still get one. */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible {
+  outline: 3px solid var(--accent2);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* ---------- typography ---------- */
+
+h1 {
+  font-size: 1.9rem;
+  margin: 0.2em 0 0.3em;
+  border-bottom: 3px solid var(--accent);
+  padding-bottom: 0.4em;
+  color: var(--ink);
+}
+
+h2 {
+  font-size: 1.4rem;
+  color: var(--accent);
+  margin-top: 2.4em;
+  border-top: 1px solid var(--line);
+  padding-top: 1em;
+}
+
+h3 {
+  font-size: 1.1rem;
+  color: var(--sub);
+  margin-top: 1.7em;
+}
+
+h4 { font-size: 1rem; color: var(--sub); margin-top: 1.4em; }
+
+p, li { color: var(--ink); }
+
+strong { color: var(--ink); }
+
+em { color: inherit; }
+
+a { color: var(--accent2); }
+
+::selection { background: #dcd3e6; }
+
+/* subtitle / author style lines that appear under a title */
+.subtitle, .doc-sub, p.subtitle {
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  color: var(--sub);
+  margin-top: -0.4em;
+  font-size: 1.05rem;
+}
+
+p.author, div.prof, div.author {
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  color: var(--sub);
+  font-size: 0.95rem;
+  margin: 0.2em 0 1em;
+}
+
+/* small "kicker"/eyebrow labels used above titles in a few lectures */
+.eyebrow, .utility, .sheet-kicker, .sheet-tag, .fem-label, .example-label,
+.panel-label, .toc-title.eyebrow {
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.72rem;
+  color: var(--accent);
+  font-weight: 700;
+  margin: 0 0 0.4em;
+  display: block;
+}
+
+.mesh-caption {
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  font-size: 0.86rem;
+  color: var(--sub);
+  font-style: italic;
+  text-align: center;
+  margin: 0.6em 0 1.4em;
+}
+
+/* small metadata rows (e.g. Source / Scope / Applied-to) laid out as spans */
+.divider, .revline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 22px;
+  border-top: 1px dashed var(--line);
+  margin: 1em 0;
+  padding-top: 0.7em;
+  font-size: 0.85rem;
+  color: var(--sub);
+}
+
+.divider span, .revline span { color: var(--sub); }
+.divider b, .revline b { color: var(--ink); }
+
+/* plain layout wrappers carried over from source documents: neutral */
+.page, .wrap, .sheet-stack, .hero, .hero-inner, .hero-text,
+.title-block, .titleblock, .masthead {
+  display: block;
+  max-width: 100%;
+}
+
+/* intro lecture's masthead labels, mapped onto the shared label styles */
+.kicker { font-family: "Helvetica Neue", Arial, sans-serif; text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.72rem; color: var(--accent); font-weight: 700; margin: 0 0 0.4em; display: block; }
+p.byline { font-family: "Helvetica Neue", Arial, sans-serif; color: var(--sub); font-size: 0.95rem; margin: 0.2em 0 1em; }
+footer.page-footer, footer.doc-footer { margin-top: 3em; padding-top: 1.2em; border-top: 1px solid var(--line); color: var(--sub); font-family: "Helvetica Neue", Arial, sans-serif; font-size: 0.82rem; text-align: center; }
+
+/* Lecture 2a masthead subtitle line */
+.sub { font-family: "Helvetica Neue", Arial, sans-serif; color: var(--sub); font-size: 1rem; margin-top: 0.3em; line-height: 1.5; }
+
+/* Lecture 3a inline SVG diagrams (scoped to svg.diagram so nothing else is affected) */
+svg.diagram .axis { stroke: #888; stroke-width: 1.4; }
+svg.diagram .curve { stroke: #2f4d3a; stroke-width: 2.6; fill: none; }
+svg.diagram .tangent { stroke: var(--accent2); stroke-width: 2.4; }
+svg.diagram .secant { stroke: #999; stroke-width: 1.4; }
+svg.diagram .secant.faint { stroke: #c9c9c9; }
+svg.diagram .approx-line, svg.diagram .approx { stroke: var(--accent2); stroke-width: 2.2; fill: none; }
+svg.diagram .dim { stroke: #bbb; stroke-width: 1; stroke-dasharray: 3,3; }
+svg.diagram .point { fill: var(--accent2); }
+svg.diagram .label { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 13px; fill: var(--sub); }
+svg.diagram .label.small { font-size: 11px; }
+svg.diagram .label.accent { fill: var(--accent2); font-weight: 600; }
+svg.diagram .rod { fill: #a9c6e8; stroke: #5c85b3; stroke-width: 1.5; }
+svg.diagram .node-outer { fill: #c8e6c9; stroke: #4a8a52; stroke-width: 1.5; }
+svg.diagram .node-inner { fill: #1f2320; }
+svg.diagram .force { stroke: #3f8f52; stroke-width: 2; }
+svg.diagram .area-fill { fill: #e9dcc9; opacity: 0.75; stroke: none; }
+
+.sheet, .wrap-sheet {
+  display: block;
+  margin: 2em 0;
+}
+
+/* blockquote used for editorial / revision notes */
+blockquote {
+  background: var(--note-bg);
+  border-left: 4px solid var(--note-border);
+  margin: 1.2em 0;
+  padding: 0.7em 1.1em;
+  border-radius: 0 4px 4px 0;
+  font-size: 0.95rem;
+  color: #4a3450;
+}
+
+blockquote p { margin: 0.3em 0; }
+
+/* unified "callout / note box" treatment for the many custom box
+   classes used across the original lectures (panels, definitions,
+   examples, principles, algorithms, correction notes, etc.) */
+div.callout, div.definition, div.example, div.principle, div.panel,
+div.algorithm, div.fem-callout, div.legend, div.eq-block {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent2);
+  border-radius: 6px;
+  padding: 1em 1.2em;
+  margin: 1.4em 0;
+  font-size: 0.96rem;
+}
+
+div.definition { border-left-color: var(--accent); }
+div.example { border-left-color: #3b8f6b; }
+div.principle { border-left-color: #b8862f; }
+
+/* tables */
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1.4em 0;
+  font-size: 0.92rem;
+  overflow-x: auto;
+  display: table;
+}
+
+div.table-scroll { overflow-x: auto; margin: 1.4em 0; }
+div.table-scroll table { margin: 0; }
+
+th, td {
+  border: 1px solid var(--line);
+  padding: 8px 12px;
+  text-align: left;
+}
+
+th, tr.header th, tr.header td {
+  background: #f1ede6;
+  color: var(--accent);
+}
+
+tr:nth-child(even) td, tr.even td {
+  background: #fbfaf7;
+}
+
+table.kmatrix td, table.map-table td { text-align: center; }
+
+/* figures / images / diagrams */
+figure {
+  margin: 1.8em 0;
+  text-align: center;
+}
+
+figure img, figure svg { margin: 0 auto; }
+
+figcaption {
+  font-size: 0.86rem;
+  color: var(--sub);
+  margin-top: 0.6em;
+  font-style: italic;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+  margin: 1.6em auto;
+  border-radius: 4px;
+}
+
+svg { max-width: 100%; height: auto; }
+
+.chart-wrap, .mesh-wrap { margin: 1.8em auto; text-align: center; max-width: 100%; }
+
+/* code */
+code {
+  background: #f1ede6;
+  padding: 0.15em 0.4em;
+  border-radius: 3px;
+  font-size: 0.9em;
+  font-family: "SF Mono", Consolas, monospace;
+}
+
+pre {
+  background: #f4f4f0;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 1rem;
+  overflow-x: auto;
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
+pre code { background: none; padding: 0; }
+
+hr {
+  border: none;
+  border-top: 1px solid var(--line);
+  margin: 2.4em 0;
+}
+
+span.num, span.swatch {
+  display: inline-block;
+  font-family: "SF Mono", Consolas, monospace;
+  font-size: 0.85em;
+  background: #f1ede6;
+  border-radius: 3px;
+  padding: 0 0.35em;
+}
+
+/* ---------- responsive ---------- */
+
+@media (max-width: 900px) {
+  .content { padding: 40px 24px 100px; max-width: 100%; }
+  .lecture, .doc-end, hr.lecture-sep { max-width: 100%; }
+}
+
+@media (max-width: 760px) {
+  .nav-toggle {
+    display: block;
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 40;
+    background: var(--sidebar-bg);
+    color: var(--sidebar-ink);
+    border: none;
+    border-radius: 20px;
+    padding: 10px 16px;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 0.85rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  }
+
+  .shell { display: block; }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    z-index: 30;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.3);
+  }
+
+  .sidebar.open { transform: translateX(0); }
+
+  .content { padding: 84px 20px 100px; }
+}
+
+@media print {
+  .sidebar, .nav-toggle { display: none; }
+  .shell { display: block; }
+  .content { padding: 0; max-width: 100%; }
+}
+
+
+.toc-group {
+  margin: 16px 0 4px;
+  padding: 0 10px;
+}
+
+.toc-group-label {
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: var(--sidebar-active);
+}
+
+.toc-link.disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.toc-link.disabled:hover { background: none; color: var(--sidebar-sub); }
+
+.toc-soon {
+  font-family: "SF Mono", Consolas, monospace;
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--sidebar-sub);
+  border: 1px solid var(--sidebar-line);
+  border-radius: 9px;
+  padding: 1px 6px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+/* ---------- classes extracted from former inline style="" attributes (Fix 4, Stage A) ---------- */
+
+/* Wrapper for centered tables (section 3 strain-tensor table); replaces invalid <p align="center"><table>. */
+.center-block { text-align: center; }
+/* Callout boxes in the intro and the closing summary; border-left only, as before (no background/padding). */
+.note { border-left: 3px solid var(--note-border); }
+/* Small-print paragraphs after the K-matrix size remark, the solver note, and the assembly note. */
+.aside { font-size: 13.5px; }
+/* Inner padding of the two <details class="tool-collapse"> interactive widgets. */
+.tool-body { padding: 1em 1.2em; }
+/* Narrow 3-column calc grid used by the B-block builder widget (must follow .calc-grid). */
+.calc-grid.calc-grid-narrow { grid-template-columns: repeat(3, 1fr); max-width: 340px; }
+/* Column widths for the section 1 three-column table and the section 9 two-column summary table. */
+col.col-third { width: 33%; }
+col.col-half { width: 50%; }
+/* Italic explanatory footer cell under the strain-tensor table in section 3. */
+td.table-caption-note { font-size: 0.85rem; font-style: italic; }
+/* max-width caps for the inline SVG figures (roadmap, hexahedron, strain, equilibrium, BCs, flowchart). */
+svg.svg-w720 { max-width: 720px; }
+svg.svg-w480 { max-width: 480px; }
+svg.svg-w440 { max-width: 440px; }
+svg.svg-w400 { max-width: 400px; }
+svg.svg-w320 { max-width: 320px; }
+/* Previous / next lesson links at the bottom of the page. */
+.page-pager {
+  display: flex;
+  justify-content: space-between;
+  margin: 2.5em 0 0;
+  font-family: 'Helvetica Neue', Arial, sans-serif;
+  font-size: 0.9rem;
+}
+
+/* ---------- additions for the interactive-widget polish and new content blocks ---------- */
+
+/* Second button in a widget row (Reset to example values). */
+.calc-btn + .calc-btn { margin-left: 8px; }
+.calc-btn.calc-btn-secondary { background: var(--sub); }
+.calc-btn.calc-btn-secondary:hover { background: #3a4150; }
+/* Input flagged as empty/invalid by the widget scripts. */
+.calc-field input.invalid { border-color: #b3261e; background: #fdf3f2; }
+/* Output box showing a validation message instead of results. */
+.calc-output.error { border-color: #b3261e; color: #8c1d18; }
+/* Horizontal scroll wrapper for the wide 6x24 [B] matrix. */
+.scroll-x { overflow-x: auto; max-width: 100%; }
+</style>
+</head>
+
+<body>
+<a href="#top" id="top"></a>
+<button id="navToggle" class="nav-toggle" aria-label="Toggle navigation" aria-expanded="false" aria-controls="sidebar">&#9776; Contents</button>
+<div class="shell">
+  <nav class="sidebar" id="sidebar">
+    <div class="sidebar-head">
+      <p class="course-code">CEE 2333</p>
+      <h1 class="course-title">Fundamentals of the<br />Finite Element Method</h1>
+      <p class="course-author">Prof. Lev Khazanovich</p>
+    </div>
+    <ul class="toc-list">
+<li><a href="00_table_of_contents.html" class="toc-link"><span class="toc-num">TOC</span><span class="toc-text"><span class="toc-title">Table of Contents</span><span class="toc-sub">All lectures</span></span></a></li>
+<li><a href="01_introduction.html" class="toc-link"><span class="toc-num">01</span><span class="toc-text"><span class="toc-title">Introduction</span><span class="toc-sub">Course overview &amp; FEM basics</span></span></a></li>
+<li class="toc-group"><span class="toc-group-label">Part 1 &middot; Mathematical Foundations for FEM</span></li>
+<li><a href="02_vectors_matrices_for_fem.html" class="toc-link"><span class="toc-num">1A</span><span class="toc-text"><span class="toc-title">Vectors and Matrices</span><span class="toc-sub">Linear algebra for FEM</span></span></a></li>
+<li><a href="03_interpolation.html" class="toc-link"><span class="toc-num">2A</span><span class="toc-text"><span class="toc-title">Interpolation and Approximation</span><span class="toc-sub">Shape functions &amp; approximation theory</span></span></a></li>
+<li><a href="04_differentiation_integration.html" class="toc-link"><span class="toc-num">3A</span><span class="toc-text"><span class="toc-title">Differentiation and Integration</span><span class="toc-sub">Numerical calculus for FEM</span></span></a></li>
+<li><div class="toc-link disabled"><span class="toc-num">4A</span><span class="toc-text"><span class="toc-title">Introduction to Python and Colab<span class="toc-soon">Soon</span></span><span class="toc-sub">Coming soon</span></span></div></li>
+<li class="toc-group"><span class="toc-group-label">Part 2 &middot; The Stiffness Method</span></li>
+<li><a href="06_1d_spring_systems.html" class="toc-link"><span class="toc-num">2</span><span class="toc-text"><span class="toc-title">1-D Spring Systems</span><span class="toc-sub">The Direct Stiffness Method</span></span></a></li>
+<li><a href="07_2d_trusses.html" class="toc-link"><span class="toc-num">3</span><span class="toc-text"><span class="toc-title">2-D Trusses</span><span class="toc-sub">Transformations &amp; assembly</span></span></a></li>
+<li><a href="08_2d_frames.html" class="toc-link"><span class="toc-num">4</span><span class="toc-text"><span class="toc-title">2-D Frames</span><span class="toc-sub">Frame elements &amp; assembly</span></span></a></li>
+<li class="toc-group"><span class="toc-group-label">Part 3</span></li>
+<li><a href="09_energy_methods_fe_formulation.html" class="toc-link"><span class="toc-num">5</span><span class="toc-text"><span class="toc-title">Energy Methods and the Finite Element Formulation</span><span class="toc-sub">Minimum potential energy, frame element &amp; Rayleigh&ndash;Ritz</span></span></a></li>
+<li class="toc-group"><span class="toc-group-label">Part 4 &middot; From 1-D/2-D Structures to 3-D Continuum FEM</span></li>
+<li><a href="10_constitutive_relations.html" class="toc-link"><span class="toc-num">6</span><span class="toc-text"><span class="toc-title">Constitutive Relations</span><span class="toc-sub">3-D Hooke&rsquo;s law &rarr; plane stress/strain</span></span></a></li>
+<li><a href="11_3d_continuum_formulation.html" class="toc-link active"><span class="toc-num">7</span><span class="toc-text"><span class="toc-title">3-D Continuum Formulation</span><span class="toc-sub">Kinematics, energy principle, element equations</span></span></a></li>
+<li class="toc-group"><span class="toc-group-label">Part 5 &middot; Two-Dimensional Elements</span></li>
+<li><a href="12_2d_elements_cst_bilinear.html" class="toc-link"><span class="toc-num">8</span><span class="toc-text"><span class="toc-title">2-D Elements &mdash; CST &amp; Bilinear</span><span class="toc-sub">Shape functions, stiffness, worked example</span></span></a></li>
+<li><div class="toc-link disabled"><span class="toc-num">9</span><span class="toc-text"><span class="toc-title">The Isoparametric Element<span class="toc-soon">Soon</span></span><span class="toc-sub">Coming soon</span></span></div></li>
+<li><div class="toc-link disabled"><span class="toc-num">10</span><span class="toc-text"><span class="toc-title">Lagrange Interpolation<span class="toc-soon">Soon</span></span><span class="toc-sub">Coming soon</span></span></div></li>
+<li><div class="toc-link disabled"><span class="toc-num">11</span><span class="toc-text"><span class="toc-title">Practical Considerations<span class="toc-soon">Soon</span></span><span class="toc-sub">Coming soon</span></span></div></li>
+    </ul>
+<p class="sidebar-foot">15-part outline &middot; 11 lectures published</p>
+  </nav>
+  <main class="content" id="content">
+
+<section class="lecture" id="lec5" aria-labelledby="lec5-marker">
+  <p class="lecture-marker" id="lec5-marker">Lecture 7 &middot; Part 4: Continuum Mechanics for FEM</p>
+  
+
+<h1 id="lec5-cee-2333-fundamentals-of-the-finite-element-method">CEE 2333 —
+Fundamentals of the Finite Element Method</h1>
+<h2 id="lec5-lecture-3d-formulation-revised-edition">Lecture: 3-D Continuum Formulation</h2>
+<p><strong>Prof. Lev Khazanovich</strong></p>
+<hr/>
+<h2 id="lec5-learning-objectives">Learning Objectives</h2>
+<p>By the end of this lecture, you should be able to:</p>
+<ul>
+<li>Extend the 1D/2D finite element concepts (shape functions, stiffness
+matrix, governing equation) to a general 3D solid, and describe the
+geometry and degrees of freedom of an 8-node hexahedral element.</li>
+<li>Write the six independent strain components and six independent
+stress components at a point in Cartesian coordinates, and compute them
+from a given displacement field.</li>
+<li>State the three differential equilibrium equations and explain why
+the stress tensor is symmetric.</li>
+<li>Recall and use the generalized Hooke’s law <span class="math inline">\(\{\sigma\}=[D]\{\varepsilon\}\)</span> for a symmetric material
+matrix <span class="math inline">\([D]\)</span> (the full derivation, the
+explicit isotropic entries, and the 36&rarr;21&rarr;9&rarr;2
+constant-count reduction are covered on the
+<a href="10_constitutive_relations.html">Constitutive Relations</a> page).</li>
+<li>Apply the principle of minimum potential energy and the Ritz
+(finite element) approximation to derive the strain-displacement matrix
+<span class="math inline">\([B]\)</span>, the element stiffness matrix
+<span class="math inline">\([K]\)</span>, and the element load vector
+<span class="math inline">\(\{f^e\}\)</span> for a 3D element.</li>
+</ul>
+<p><strong>Roadmap.</strong> Everything in this lecture funnels toward
+one destination: turning a continuum elasticity problem into a matrix
+equation a computer can solve. Here is the path:</p>
+<p align="center">
+<svg viewBox="0 0 700 130" width="100%" class="svg-w720" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Roadmap: continuum kinematics leads to the constitutive law, then the energy principle, the Ritz approximation, the B matrix, and finally the K matrix and load vector">
+  <g font-family="Helvetica Neue, Arial, sans-serif">
+    <rect x="10" y="30" width="95" height="70" rx="8" fill="rgba(59,125,216,0.10)" stroke="#3b7dd8" stroke-width="1.6"/>
+    <text x="57" y="53" font-size="10.5" fill="#1e2430" font-weight="600" text-anchor="middle">Continuum</text>
+    <text x="57" y="66" font-size="10.5" fill="#1e2430" font-weight="600" text-anchor="middle">kinematics</text>
+    <text x="57" y="86" font-size="9.5" fill="#4a5264" text-anchor="middle">&sect;1&ndash;3</text>
+
+    <rect x="125" y="30" width="95" height="70" rx="8" fill="rgba(181,101,29,0.10)" stroke="#b5651d" stroke-width="1.6"/>
+    <text x="172" y="53" font-size="10.5" fill="#1e2430" font-weight="600" text-anchor="middle">Constitutive</text>
+    <text x="172" y="66" font-size="10.5" fill="#1e2430" font-weight="600" text-anchor="middle">law [D]</text>
+    <text x="172" y="86" font-size="9.5" fill="#4a5264" text-anchor="middle">&sect;6</text>
+
+    <rect x="240" y="30" width="95" height="70" rx="8" fill="rgba(59,143,107,0.10)" stroke="#3b8f6b" stroke-width="1.6"/>
+    <text x="287" y="53" font-size="10.5" fill="#1e2430" font-weight="600" text-anchor="middle">Energy</text>
+    <text x="287" y="66" font-size="10.5" fill="#1e2430" font-weight="600" text-anchor="middle">principle &Pi;</text>
+    <text x="287" y="86" font-size="9.5" fill="#4a5264" text-anchor="middle">&sect;8</text>
+
+    <rect x="355" y="30" width="95" height="70" rx="8" fill="rgba(122,74,99,0.10)" stroke="#7a4a63" stroke-width="1.6"/>
+    <text x="402" y="53" font-size="10.5" fill="#1e2430" font-weight="600" text-anchor="middle">Ritz</text>
+    <text x="402" y="66" font-size="10.5" fill="#1e2430" font-weight="600" text-anchor="middle">approximation</text>
+    <text x="402" y="86" font-size="9.5" fill="#4a5264" text-anchor="middle">&sect;9</text>
+
+    <rect x="470" y="30" width="95" height="70" rx="8" fill="rgba(59,125,216,0.10)" stroke="#3b7dd8" stroke-width="1.6"/>
+    <text x="517" y="63" font-size="11.5" fill="#1e2430" font-weight="600" text-anchor="middle">[B] matrix</text>
+    <text x="517" y="86" font-size="9.5" fill="#4a5264" text-anchor="middle">&sect;9</text>
+
+    <rect x="585" y="30" width="95" height="70" rx="8" fill="rgba(181,101,29,0.10)" stroke="#b5651d" stroke-width="1.6"/>
+    <text x="632" y="60" font-size="11" fill="#1e2430" font-weight="600" text-anchor="middle">[K] and</text>
+    <text x="632" y="73" font-size="11" fill="#1e2430" font-weight="600" text-anchor="middle">{f^e}</text>
+    <text x="632" y="90" font-size="9.5" fill="#4a5264" text-anchor="middle">&sect;10&ndash;11</text>
+
+    <line x1="105" y1="65" x2="125" y2="65" stroke="#4a5264" stroke-width="1.6" marker-end="url(#roadArrow)"/>
+    <line x1="220" y1="65" x2="240" y2="65" stroke="#4a5264" stroke-width="1.6" marker-end="url(#roadArrow)"/>
+    <line x1="335" y1="65" x2="355" y2="65" stroke="#4a5264" stroke-width="1.6" marker-end="url(#roadArrow)"/>
+    <line x1="450" y1="65" x2="470" y2="65" stroke="#4a5264" stroke-width="1.6" marker-end="url(#roadArrow)"/>
+    <line x1="565" y1="65" x2="585" y2="65" stroke="#4a5264" stroke-width="1.6" marker-end="url(#roadArrow)"/>
+  </g>
+  <defs>
+    <marker id="roadArrow" markerWidth="7" markerHeight="7" refX="3.5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#4a5264"/></marker>
+  </defs>
+</svg>
+</p>
+<div class="note">
+<strong>The model used in this lecture:</strong> small strain + linear
+elasticity + static equilibrium + isotropy + homogeneity (same five
+assumptions built up on <a href="10_constitutive_relations.html">Constitutive
+Relations</a>, with one addition specific to this lecture &mdash; <strong>static
+equilibrium</strong>: no inertial (mass &times; acceleration) terms, so
+the equilibrium equations in &sect;5 balance only stresses against body
+forces, not against dynamic loads). Everything from &sect;1 onward
+assumes all five hold; if a problem has large deformations, plasticity,
+dynamic loading, or an anisotropic material, the formulation built here
+needs modification before it applies.
+</div>
+<p><strong>Where the assumptions matter.</strong> What breaks, and what has to
+change, if each assumption is violated:</p>
+<table>
+<thead>
+<tr class="header"><th scope="col">Assumption</th><th scope="col">If violated</th><th scope="col">What changes in this formulation</th></tr>
+</thead>
+<tbody>
+<tr class="odd"><td>Small strain</td><td>Large displacements or rotations &rarr; geometric nonlinearity</td><td>The strain&ndash;displacement relations gain quadratic terms, equilibrium must be written on the deformed geometry, and <span class="math inline">\([B]\)</span> depends on the current displacements.</td></tr>
+<tr class="even"><td>Linear elasticity</td><td>Plasticity, damage, hyperelasticity &rarr; material nonlinearity</td><td><span class="math inline">\(\{\sigma\}=[D]\{\varepsilon\}\)</span> no longer holds; <span class="math inline">\([D]\)</span> becomes a tangent that changes with the state, and <span class="math inline">\([K]\{u\}=\{F\}\)</span> must be solved iteratively.</td></tr>
+<tr class="odd"><td>Static equilibrium</td><td>Dynamic loading &rarr; inertia terms</td><td>A mass term (density &times; acceleration) enters the equilibrium equations, so a mass matrix <span class="math inline">\([M]\)</span> appears alongside <span class="math inline">\([K]\)</span>.</td></tr>
+<tr class="even"><td>Isotropy</td><td>Composites, wood, single crystals &rarr; anisotropy</td><td>The two-constant isotropic <span class="math inline">\([D]\)</span> is replaced by a full (or orthotropic) <span class="math inline">\([D]\)</span> with more independent constants; <span class="math inline">\([B]\)</span> is unchanged.</td></tr>
+<tr class="odd"><td>Homogeneity</td><td>Graded or layered material &rarr; <span class="math inline">\(E,\nu\)</span> vary in space</td><td><span class="math inline">\([D]\)</span> becomes <span class="math inline">\([D(\vec x)]\)</span> and must stay inside the integral <span class="math inline">\(\int [B]^T[D][B]\,dV\)</span>.</td></tr>
+</tbody>
+</table>
+<hr/>
+<h2 id="lec5-outline">Outline</h2>
+<ol type="1">
+<li><a href="#lec5-bridging-from-1d2d-to-3d">Bridging from 1D/2D to 3D</a></li>
+<li><a href="#lec5-geometry-and-displacements-of-a-3d-element">Geometry and displacements of a 3D element</a></li>
+<li><a href="#lec5-strains-in-cartesian-coordinates">Strains in Cartesian coordinates (+ worked example)</a></li>
+<li><a href="#lec5-stresses-in-cartesian-coordinates">Stresses in Cartesian coordinates</a></li>
+<li><a href="#lec5-equilibrium-equations">Equilibrium equations</a></li>
+<li><a href="#lec5-constitutive-law-generalized-hookes-law">Constitutive law (recap): <span class="math inline">\(\{\sigma\}=[D]\{\varepsilon\}\)</span></a></li>
+<li><a href="#lec5-boundary-conditions">Boundary conditions</a></li>
+<li><a href="#lec5-principle-of-minimum-potential-energy">Principle of Minimum Potential Energy</a></li>
+<li><a href="#lec5-finite-element-approximation-ritz-method">Finite element approximation (Rayleigh&ndash;Ritz method)</a></li>
+<li><a href="#lec5-deriving-the-element-stiffness-matrix">Deriving the element stiffness matrix</a></li>
+<li><a href="#lec5-final-finite-element-equations">Final finite element equations</a></li>
+</ol>
+<hr/>
+<h2 id="lec5-bridging-from-1d2d-to-3d">1. Bridging from 1D/2D to 3D</h2>
+<p>In the 1D (bar/Ritz) and 2D (plane stiffness) formulations covered
+earlier in this course, you already built every piece of the finite
+element method you need for 3D:</p>
+<table>
+<colgroup>
+<col class="col-third"/>
+<col class="col-third"/>
+<col class="col-third"/>
+</colgroup>
+<thead>
+<tr class="header">
+<th>Concept</th>
+<th>1D / 2D version</th>
+<th>3D version (this lecture)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Unknown field</td>
+<td>axial displacement <span class="math inline">\(u(x)\)</span></td>
+<td>displacement vector <span class="math inline">\(\vec u(\vec x) =
+\{u, v, w\}^T\)</span></td>
+</tr>
+<tr class="even">
+<td>Strain</td>
+<td><span class="math inline">\(\varepsilon = du/dx\)</span></td>
+<td>6 strain components: 3 normal + 3 shear</td>
+</tr>
+<tr class="odd">
+<td>Stress</td>
+<td><span class="math inline">\(\sigma = E\varepsilon\)</span></td>
+<td>6 stress components, related through a <span class="math inline">\(6\times 6\)</span> material matrix <span class="math inline">\([D]\)</span></td>
+</tr>
+<tr class="even">
+<td>Shape functions</td>
+<td><span class="math inline">\(N_i(x)\)</span></td>
+<td><span class="math inline">\(N_i(\vec x)\)</span>, now functions of
+<span class="math inline">\(x,y,z\)</span></td>
+</tr>
+<tr class="odd">
+<td>Governing equation</td>
+<td><span class="math inline">\([K]\{u\} = \{F\}\)</span></td>
+<td><span class="math inline">\([K]\{u^e\} = \{f\}\)</span> (same form,
+larger matrices)</td>
+</tr>
+<tr class="even">
+<td>Element</td>
+<td>2-node bar / 4-node quad</td>
+<td>8-node hexahedron (used throughout this lecture)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Nothing about the <em>logic</em> of the finite element method
+changes.</strong> What changes is the bookkeeping: strain and stress
+become 6-component vectors instead of scalars, and the material law
+becomes a <span class="math inline">\(6\times 6\)</span> matrix instead
+of a single modulus <span class="math inline">\(E\)</span>. Keep this
+table in mind — every equation below is the direct 3D generalization of
+something you have already derived.</p>
+<hr/>
+<h2 id="lec5-geometry-and-displacements-of-a-3d-element">2. Geometry and
+Displacements of a 3D Element</h2>
+<p>We describe the position of any point in the element with the
+vector</p>
+<p><span class="math display">\[\vec x = \{x\ \ y\ \ z\}^T\]</span></p>
+<p align="center">
+<svg viewBox="0 0 460 270" width="100%" class="svg-w480" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="8-node hexahedral element with node numbers and nodal degrees of freedom labeled">
+  <title>8-node hexahedral element</title>
+  <desc>Brick element with nodes 1 to 8 at its corners. Each node is labeled with its three displacement degrees of freedom u, v, w, for a total of 8 nodes times 3 = 24 degrees of freedom.</desc>
+  <g fill="none" stroke="#3b7dd8" stroke-width="1.8">
+    <polygon points="90,200 250,200 280,160 120,160" />
+    <polygon points="90,80 250,80 280,40 120,40" />
+    <line x1="90" y1="200" x2="90" y2="80" />
+    <line x1="250" y1="200" x2="250" y2="80" />
+    <line x1="280" y1="160" x2="280" y2="40" />
+    <line x1="120" y1="160" x2="120" y2="40" />
+  </g>
+  <g fill="#7a4a63" font-family="SF Mono, Consolas, monospace" font-size="12">
+    <circle cx="90" cy="200" r="3.5"/><text x="8" y="217">1: u&#8321;,v&#8321;,w&#8321;</text>
+    <circle cx="250" cy="200" r="3.5"/><text x="256" y="217">2: u&#8322;,v&#8322;,w&#8322;</text>
+    <circle cx="280" cy="160" r="3.5"/><text x="286" y="160">3: u&#8323;,v&#8323;,w&#8323;</text>
+    <circle cx="120" cy="160" r="3.5"/><text x="16" y="150">4: u&#8324;,v&#8324;,w&#8324;</text>
+    <circle cx="90" cy="80" r="3.5"/><text x="8" y="65">5: u&#8325;,v&#8325;,w&#8325;</text>
+    <circle cx="250" cy="80" r="3.5"/><text x="256" y="65">6: u&#8326;,v&#8326;,w&#8326;</text>
+    <circle cx="280" cy="40" r="3.5"/><text x="286" y="28">7: u&#8327;,v&#8327;,w&#8327;</text>
+    <circle cx="120" cy="40" r="3.5"/><text x="16" y="18">8: u&#8328;,v&#8328;,w&#8328;</text>
+  </g>
+  <g font-family="Helvetica Neue, Arial, sans-serif" font-size="12" fill="#4a5264">
+    <text x="230" y="250">Total DOF = 8 nodes &times; 3 = 24</text>
+  </g>
+</svg>
+</p>
+<p>This is an <strong>8-node hexahedral (brick) element</strong> — the
+standard 3D analogue of the 2-node bar and 4-node quadrilateral you used
+previously. All 8 nodes carry three displacement degrees of freedom each
+(one per coordinate direction), for <span class="math inline">\(8\times
+3 = 24\)</span> total degrees of freedom per element.</p>
+<p>The displacement at any point is</p>
+<p><span class="math display">\[\vec u(\vec x) = \{u(\vec x)\ \ v(\vec
+x)\ \ w(\vec x)\}^T\]</span></p>
+<p>i.e., displacement components in the <span class="math inline">\(x\)</span>-, <span class="math inline">\(y\)</span>-, and <span class="math inline">\(z\)</span>-directions, respectively. At node 1,
+for example, the nodal displacements are <span class="math inline">\(u_1, v_1, w_1\)</span>.</p>
+<details class="check-prompt">
+<summary>Check your understanding: Why 24 DOF?</summary>
+<div class="answer">
+<p>How many total degrees of freedom does the 8-node hexahedral element
+have, and why?</p>
+<p><em>Answer:</em> 24. Each of the 8 nodes carries 3 translational
+displacement components (<span class="math inline">\(u_i, v_i,
+w_i\)</span>), one per coordinate direction, so <span class="math inline">\(8 \times 3 = 24\)</span>.</p>
+</div>
+</details>
+<hr/>
+<h2 id="lec5-strains-in-cartesian-coordinates">3. Strains in Cartesian
+Coordinates</h2>
+<p align="center">
+<svg viewBox="0 0 460 190" width="100%" class="svg-w480" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Normal strain shown as elongation, shear strain shown as angle change">
+  <title>Normal strain versus shear strain</title>
+  <desc>Left: a square stretched along x, with the original outline dashed and the label epsilon_xx = du/dx; normal strain changes side lengths. Right: a square distorted into a parallelogram, labeled gamma_xy = du/dy + dv/dx; shear strain changes right angles.</desc>
+  <text x="115" y="18" font-family="Helvetica Neue, Arial, sans-serif" font-size="13" fill="#1e2430" font-weight="600" text-anchor="middle">Normal strain (&#949;)</text>
+  <text x="345" y="18" font-family="Helvetica Neue, Arial, sans-serif" font-size="13" fill="#1e2430" font-weight="600" text-anchor="middle">Shear strain (&#947;)</text>
+  <g>
+    <rect x="50" y="40" width="70" height="70" fill="none" stroke="#c7c2ba" stroke-width="1.3" stroke-dasharray="3,3"/>
+    <rect x="50" y="40" width="95" height="70" fill="rgba(59,125,216,0.12)" stroke="#3b7dd8" stroke-width="1.8"/>
+    <text x="97" y="130" font-family="SF Mono, Consolas, monospace" font-size="12" fill="#3b7dd8" text-anchor="middle">&#949;_xx = &#8706;u/&#8706;x</text>
+  </g>
+  <g>
+    <rect x="280" y="40" width="70" height="70" fill="none" stroke="#c7c2ba" stroke-width="1.3"/>
+    <polygon points="280,40 350,40 375,110 305,110" fill="rgba(181,101,29,0.12)" stroke="#b5651d" stroke-width="1.8"/>
+    <text x="327" y="130" font-family="SF Mono, Consolas, monospace" font-size="12" fill="#b5651d" text-anchor="middle">&#947;_xy = &#8706;u/&#8706;y + &#8706;v/&#8706;x</text>
+  </g>
+  <text x="115" y="155" font-family="Helvetica Neue, Arial, sans-serif" font-size="11" fill="#4a5264" text-anchor="middle">stretches/contracts side lengths</text>
+  <text x="345" y="155" font-family="Helvetica Neue, Arial, sans-serif" font-size="11" fill="#4a5264" text-anchor="middle">changes right angles (square &rarr; parallelogram)</text>
+</svg>
+</p>
+<p><strong>Extensional (normal) strains:</strong></p>
+<p><span class="math display">\[\varepsilon_{xx} \equiv \varepsilon_x =
+\frac{\partial u}{\partial x}, \qquad
+\varepsilon_{yy} \equiv \varepsilon_y = \frac{\partial v}{\partial y},
+\qquad
+\varepsilon_{zz} \equiv \varepsilon_z = \frac{\partial w}{\partial
+z}\]</span></p>
+<p><strong>Shear strains</strong> (engineering convention, <span class="math inline">\(\gamma = 2\varepsilon\)</span> — the one used in the
+stiffness formulation later in this lecture):</p>
+<p><span class="math display">\[\gamma_{xy} = \gamma_{yx} =
+\frac{\partial u}{\partial y} + \frac{\partial v}{\partial x}, \qquad
+\gamma_{xz} = \gamma_{zx} = \frac{\partial u}{\partial z} +
+\frac{\partial w}{\partial x}, \qquad
+\gamma_{yz} = \gamma_{zy} = \frac{\partial v}{\partial z} +
+\frac{\partial w}{\partial y}\]</span></p>
+<div class="definition">
+<strong>Convention used throughout.</strong> Throughout this lecture (and in the
+stiffness-matrix derivation) we use <em>engineering</em> shear strains
+<span class="math inline">\(\gamma_{ij}\)</span>. The factor of &frac12; appears
+only when the strain is written as a tensor.
+</div>
+<div class="center-block">
+<table>
+<tr><th>Strain tensor (engineering shear components)</th></tr>
+<tr><td><span class="math display">\[\begin{bmatrix}
+\varepsilon_{xx} &amp; \gamma_{xy}/2 &amp; \gamma_{xz}/2 \\
+\gamma_{xy}/2 &amp; \varepsilon_{yy} &amp; \gamma_{yz}/2 \\
+\gamma_{xz}/2 &amp; \gamma_{yz}/2 &amp; \varepsilon_{zz}
+\end{bmatrix}\]</span></td></tr>
+<tr><td class="table-caption-note">The tensor uses the
+<em>tensorial</em> shear strain <span class="math inline">\(\gamma/2\)</span>
+on the off-diagonal. For the FEM formulation later in this lecture we
+instead collect the <em>engineering</em> shear strain <span class="math inline">\(\gamma\)</span> (no factor of 2) into a 6-vector:
+<span class="math inline">\(\{\varepsilon\} = \{\varepsilon_{xx},
+\varepsilon_{yy}, \varepsilon_{zz}, \gamma_{xy}, \gamma_{xz},
+\gamma_{yz}\}^T\)</span> <em>(engineering shears &mdash; no factor of &frac12;)</em> &mdash; this is the same engineering-vs-tensorial
+distinction, and the same work-conjugacy argument for why <span class="math inline">\(\{\varepsilon\}\)</span> uses <span class="math inline">\(\gamma\)</span> rather than <span class="math inline">\(\gamma/2\)</span>, covered in full on <a href="10_constitutive_relations.html#strains">&sect;2.0 of
+<em>Constitutive Relations</em></a>. Here we only need the bottom line:
+<span class="math inline">\(\{\sigma\}\)</span> and <span class="math inline">\(\{\varepsilon\}\)</span> stay work-conjugate &mdash; i.e. <span class="math inline">\(\{\sigma\}^T\{\varepsilon\}\)</span> gives the correct
+strain energy density &mdash; without carrying extra factors of 2 through
+the stiffness derivation.</td></tr>
+</table>
+</div>
+<h3 id="lec5-worked-example-computing-strains-from-a-displacement-field">Worked
+Example — Computing Strains from a Displacement Field</h3>
+<p>Given the displacement field</p>
+<p><span class="math display">\[u(x,y,z) = a_1x^2y^2 + b_1x^2y + c_1xy +
+d_1\]</span> <span class="math display">\[v(x,y,z) = a_2x^2y^2 + b_2x^2y
++ c_2xy + d_2\]</span> <span class="math display">\[w(x,y,z) = a_3xy^2z
++ b_3xyz + c_3x^2yz + d_3\]</span></p>
+<p><strong>Normal strains:</strong></p>
+<p><span class="math display">\[\varepsilon_x = \frac{\partial
+u}{\partial x} = 2a_1xy^2 + 2b_1xy + c_1y\]</span></p>
+<p><span class="math display">\[\varepsilon_y = \frac{\partial
+v}{\partial y} = 2a_2x^2y + b_2x^2 + c_2x\]</span></p>
+<p><span class="math display">\[\varepsilon_z = \frac{\partial
+w}{\partial z} = a_3xy^2 + b_3xy + c_3x^2y\]</span></p>
+<p><strong>Shear strains:</strong></p>
+<p><span class="math display">\[\gamma_{xy} = \frac{\partial u}{\partial
+y} + \frac{\partial v}{\partial x}
+= \left(2a_1x^2y + b_1x^2 + c_1x\right) + \left(2a_2xy^2 + 2b_2xy +
+c_2y\right)\]</span></p>
+<p><span class="math display">\[\gamma_{xz} = \frac{\partial u}{\partial
+z} + \frac{\partial w}{\partial x}
+= a_3y^2z + b_3yz + 2c_3xyz\]</span></p>
+<p><span class="math display">\[\gamma_{yz} = \frac{\partial v}{\partial
+z} + \frac{\partial w}{\partial y}
+= 2a_3xyz + b_3xz + c_3x^2z\]</span></p>
+<p>This is exactly the same differentiation procedure you used for 1D
+and 2D displacement fields — there are simply more terms and more
+partial derivatives to track.</p>
+<details class="tool-collapse">
+<summary>Try it: Displacement &rarr; Strain Calculator</summary>
+<div class="tool-body">
+<p>Enter coefficients for the same displacement-field form used above
+(<span class="math inline">\(u=a_1x^2y^2+b_1x^2y+c_1xy\)</span>, <span class="math inline">\(v=a_2x^2y^2+b_2x^2y+c_2xy\)</span>, <span class="math inline">\(w=a_3xy^2z+b_3xyz+c_3x^2yz\)</span>), plus a point
+<span class="math inline">\((x,y,z)\)</span>, and the six strain
+components below evaluate live using the formulas derived above.</p>
+<div class="calc-grid">
+  <div class="calc-field"><label for="sa1">a<sub>1</sub></label><input id="sa1" type="number" value="1" step="0.1"></div>
+  <div class="calc-field"><label for="sb1">b<sub>1</sub></label><input id="sb1" type="number" value="1" step="0.1"></div>
+  <div class="calc-field"><label for="sc1">c<sub>1</sub></label><input id="sc1" type="number" value="1" step="0.1"></div>
+  <div class="calc-field"><label for="sa2">a<sub>2</sub></label><input id="sa2" type="number" value="1" step="0.1"></div>
+  <div class="calc-field"><label for="sb2">b<sub>2</sub></label><input id="sb2" type="number" value="1" step="0.1"></div>
+  <div class="calc-field"><label for="sc2">c<sub>2</sub></label><input id="sc2" type="number" value="1" step="0.1"></div>
+  <div class="calc-field"><label for="sa3">a<sub>3</sub></label><input id="sa3" type="number" value="1" step="0.1"></div>
+  <div class="calc-field"><label for="sb3">b<sub>3</sub></label><input id="sb3" type="number" value="1" step="0.1"></div>
+  <div class="calc-field"><label for="sc3">c<sub>3</sub></label><input id="sc3" type="number" value="1" step="0.1"></div>
+  <div class="calc-field"><label for="spx">x</label><input id="spx" type="number" value="1" step="0.1"></div>
+  <div class="calc-field"><label for="spy">y</label><input id="spy" type="number" value="1" step="0.1"></div>
+  <div class="calc-field"><label for="spz">z</label><input id="spz" type="number" value="1" step="0.1"></div>
+</div>
+<button type="button" class="calc-btn" id="calcStrainBtn">Compute strains</button><button type="button" class="calc-btn calc-btn-secondary" id="resetStrainBtn">Reset to example values</button>
+<div id="calcStrainOutput" class="calc-output" aria-live="polite">Click &ldquo;Compute strains&rdquo; to see the result.</div>
+</div>
+</details>
+<script>
+(function () {
+  var btn = document.getElementById('calcStrainBtn');
+  var resetBtn = document.getElementById('resetStrainBtn');
+  var outEl = document.getElementById('calcStrainOutput');
+  if (!btn || !outEl) return;
+  var initialMsg = outEl.textContent;
+  // Example values: all nine coefficients = 1 and the evaluation point (1, 1, 1).
+  var defaults = { sa1: 1, sb1: 1, sc1: 1, sa2: 1, sb2: 1, sc2: 1, sa3: 1, sb3: 1, sc3: 1, spx: 1, spy: 1, spz: 1 };
+  var ids = Object.keys(defaults);
+
+  function labelOf(id) {
+    var l = document.querySelector('label[for="' + id + '"]');
+    return l ? l.textContent : id;
+  }
+  function clearInvalid(el) {
+    el.classList.remove('invalid');
+    el.removeAttribute('aria-invalid');
+  }
+  ids.forEach(function (id) {
+    document.getElementById(id).addEventListener('input', function () { clearInvalid(this); });
+  });
+
+  // Empty or non-numeric fields are flagged, never silently treated as zero.
+  function read() {
+    var vals = {}, bad = [];
+    ids.forEach(function (id) {
+      var el = document.getElementById(id);
+      var raw = el.value.trim();
+      var v = parseFloat(raw);
+      if (raw === '' || !isFinite(v)) {
+        bad.push(labelOf(id));
+        el.classList.add('invalid');
+        el.setAttribute('aria-invalid', 'true');
+      } else {
+        clearInvalid(el);
+        vals[id] = v;
+      }
+    });
+    return { vals: vals, bad: bad };
+  }
+
+  btn.addEventListener('click', function () {
+    var r = read();
+    if (r.bad.length) {
+      outEl.classList.add('error');
+      outEl.textContent = 'Every field needs a number. Missing or invalid: ' + r.bad.join(', ') + '.';
+      return;
+    }
+    outEl.classList.remove('error');
+    var v = r.vals;
+    var a1 = v.sa1, b1 = v.sb1, c1 = v.sc1;
+    var a2 = v.sa2, b2 = v.sb2, c2 = v.sc2;
+    var a3 = v.sa3, b3 = v.sb3, c3 = v.sc3;
+    var x = v.spx, y = v.spy, z = v.spz;
+
+    // Partial derivatives of the displacement field (u, v, w).
+    var ux = 2 * a1 * x * y * y + 2 * b1 * x * y + c1 * y;
+    var uy = 2 * a1 * x * x * y + b1 * x * x + c1 * x;
+    var uz = 0;
+    var vx = 2 * a2 * x * y * y + 2 * b2 * x * y + c2 * y;
+    var vy = 2 * a2 * x * x * y + b2 * x * x + c2 * x;
+    var vz = 0;
+    var wx = a3 * y * y * z + b3 * y * z + 2 * c3 * x * y * z;
+    var wy = 2 * a3 * x * y * z + b3 * x * z + c3 * x * x * z;
+    var wz = a3 * x * y * y + b3 * x * y + c3 * x * x * y;
+
+    var ex = ux, ey = vy, ez = wz;
+    var gxy = uy + vx, gxz = uz + wx, gyz = vz + wy;
+
+    function fmt(n) { return (Math.round(n * 10000) / 10000).toString(); }
+
+    var out = '\u03B5_xx = ' + fmt(ex) + '\n' +
+              '\u03B5_yy = ' + fmt(ey) + '\n' +
+              '\u03B5_zz = ' + fmt(ez) + '\n' +
+              '\u03B3_xy = ' + fmt(gxy) + '\n' +
+              '\u03B3_xz = ' + fmt(gxz) + '\n' +
+              '\u03B3_yz = ' + fmt(gyz) + '\n\n' +
+              'Partial derivatives used (check your hand work):\n' +
+              '\u2202u/\u2202x = ' + fmt(ux) + '   \u2202u/\u2202y = ' + fmt(uy) + '   \u2202u/\u2202z = ' + fmt(uz) + '\n' +
+              '\u2202v/\u2202x = ' + fmt(vx) + '   \u2202v/\u2202y = ' + fmt(vy) + '   \u2202v/\u2202z = ' + fmt(vz) + '\n' +
+              '\u2202w/\u2202x = ' + fmt(wx) + '   \u2202w/\u2202y = ' + fmt(wy) + '   \u2202w/\u2202z = ' + fmt(wz);
+    outEl.textContent = out;
+  });
+
+  resetBtn.addEventListener('click', function () {
+    ids.forEach(function (id) {
+      var el = document.getElementById(id);
+      el.value = defaults[id];
+      clearInvalid(el);
+    });
+    outEl.classList.remove('error');
+    outEl.textContent = initialMsg;
+  });
+})();
+</script>
+<h3 id="lec5-worked-numerical-example">Worked Numerical Example &mdash;
+From Displacement to Stress</h3>
+<p>To make the bookkeeping concrete before meeting the full <span class="math inline">\([B]\)</span> matrix, here is the same procedure with
+numbers instead of unknown coefficients. Take the simple linear
+displacement field (SI units; the numbers below are illustrative rather
+than physically realistic):</p>
+<p><span class="math display">\[u = 0.0020x + 0.0010y, \qquad
+v = 0.0005x + 0.0015y, \qquad
+w = 0.0010z\]</span></p>
+<p><strong>Step 1 &mdash; strains</strong> (constant everywhere, since
+every displacement gradient here is constant):</p>
+<p><span class="math display">\[\varepsilon_{xx} = \frac{\partial
+u}{\partial x} = 0.0020, \qquad
+\varepsilon_{yy} = \frac{\partial v}{\partial y} = 0.0015, \qquad
+\varepsilon_{zz} = \frac{\partial w}{\partial z} = 0.0010\]</span></p>
+<p><span class="math display">\[\gamma_{xy} = \frac{\partial u}{\partial
+y} + \frac{\partial v}{\partial x} = 0.0010 + 0.0005 = 0.0015, \qquad
+\gamma_{xz} = 0, \qquad \gamma_{yz} = 0\]</span></p>
+<p>so <span class="math inline">\(\{\varepsilon\} = \{0.0020,\ 0.0015,\
+0.0010,\ 0.0015,\ 0,\ 0\}^T\)</span>. (These strain magnitudes are unrealistically large for linear elasticity; they are chosen only so the arithmetic stays readable.)</p>
+<p><strong>Step 2 &mdash; stresses</strong> via the isotropic <span class="math inline">\([D]\)</span> matrix (&sect;6). With <span class="math inline">\(E = 200\)</span> GPa and <span class="math inline">\(\nu = 0.25\)</span>, the scale factor
+<span class="math inline">\(E/[(1+\nu)(1-2\nu)] = 320\)</span> GPa
+sets every coefficient below: it gives normal-stress coefficients <span class="math inline">\(320(1-\nu)=240\)</span> GPa and <span class="math inline">\(320\nu=80\)</span> GPa, and a shear coefficient <span class="math inline">\(320\cdot\frac{1-2\nu}{2}=80\)</span> GPa &mdash; which is
+just <span class="math inline">\(G\)</span>, as it must be. (Explicit entries and a live calculator for <span class="math inline">\([D]\)</span> are on <a href="10_constitutive_relations.html#calculator"><em>Constitutive
+Relations</em>, &sect;calculator</a>; feel free to feed the same <span class="math inline">\(\{\varepsilon\}\)</span> from Step 1 into that calculator now and confirm it returns the same stresses computed below.)</p>
+<p><span class="math display">\[\sigma_{xx} = 240(0.0020) + 80(0.0015) +
+80(0.0010) = 0.68 \text{ GPa} = 680 \text{ MPa}\]</span></p>
+<p><span class="math display">\[\sigma_{yy} = 80(0.0020) + 240(0.0015) +
+80(0.0010) = 0.60 \text{ GPa} = 600 \text{ MPa}\]</span></p>
+<p><span class="math display">\[\sigma_{zz} = 80(0.0020) + 80(0.0015) +
+240(0.0010) = 0.52 \text{ GPa} = 520 \text{ MPa}\]</span></p>
+<p><span class="math display">\[\tau_{xy} = 80(0.0015) = 0.12 \text{ GPa}
+= 120 \text{ MPa}, \qquad \tau_{xz} = \tau_{yz} = 0\]</span></p>
+<p>You can check this against the live <span class="math inline">\([D]\)</span> calculator on <a href="10_constitutive_relations.html#calculator"><em>Constitutive
+Relations</em></a>: enter <span class="math inline">\(\sigma_x=0.68\)</span>, <span class="math inline">\(\sigma_y=0.60\)</span>, <span class="math inline">\(\sigma_z=0.52\)</span>, <span class="math inline">\(\tau_{xy}=0.12\)</span> (all in GPa, matching the units used above), <span class="math inline">\(E=200\)</span> GPa, <span class="math inline">\(\nu=0.25\)</span>, and confirm the reported strains match <span class="math inline">\(\{\varepsilon\}\)</span> above.</p>
+<p>Every entry above came from the same two operations you will repeat,
+symbolically, for the full 8-node element: differentiate the
+displacement field to get <span class="math inline">\(\{\varepsilon\}\)</span>, then multiply by <span class="math inline">\([D]\)</span> to get <span class="math inline">\(\{\sigma\}\)</span>. The only thing that changes for a real
+element is that <span class="math inline">\(\{\varepsilon\}\)</span>
+comes from <span class="math inline">\([B]\{u^e\}\)</span> instead of a
+displacement field given in closed form.</p>
+<hr/>
+<h2 id="lec5-stresses-in-cartesian-coordinates">4. Stresses in Cartesian
+Coordinates</h2>
+<p>Stress notation (face, direction, the normal-vs-shear distinction, and
+the face/direction figure) is built up from scratch in <a href="10_constitutive_relations.html#stresses">§1.0 of
+<em>Constitutive Relations</em></a>. Here we only need the result: the
+first subscript of <span class="math inline">\(\tau_{ij}\)</span>
+identifies the face (by its outward-normal direction), the second
+identifies the direction the stress acts in.</p>
+<table>
+<thead>
+<tr class="header">
+<th>Component</th>
+<th>Type</th>
+<th>Acts on face</th>
+<th>Acts in direction</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd"><td><span class="math inline">\(\sigma_x\)</span></td><td>normal</td><td><span class="math inline">\(x\)</span></td><td><span class="math inline">\(x\)</span></td></tr>
+<tr class="even"><td><span class="math inline">\(\sigma_y\)</span></td><td>normal</td><td><span class="math inline">\(y\)</span></td><td><span class="math inline">\(y\)</span></td></tr>
+<tr class="odd"><td><span class="math inline">\(\sigma_z\)</span></td><td>normal</td><td><span class="math inline">\(z\)</span></td><td><span class="math inline">\(z\)</span></td></tr>
+<tr class="even"><td><span class="math inline">\(\tau_{xy}=\tau_{yx}\)</span></td><td>shear</td><td><span class="math inline">\(x\)</span> (or <span class="math inline">\(y\)</span>)</td><td><span class="math inline">\(y\)</span> (or <span class="math inline">\(x\)</span>)</td></tr>
+<tr class="odd"><td><span class="math inline">\(\tau_{xz}=\tau_{zx}\)</span></td><td>shear</td><td><span class="math inline">\(x\)</span> (or <span class="math inline">\(z\)</span>)</td><td><span class="math inline">\(z\)</span> (or <span class="math inline">\(x\)</span>)</td></tr>
+<tr class="even"><td><span class="math inline">\(\tau_{yz}=\tau_{zy}\)</span></td><td>shear</td><td><span class="math inline">\(y\)</span> (or <span class="math inline">\(z\)</span>)</td><td><span class="math inline">\(z\)</span> (or <span class="math inline">\(y\)</span>)</td></tr>
+</tbody>
+</table>
+<p>The shear rows collapse to one independent value each by symmetry of
+the stress tensor (shown in the equilibrium section below):</p>
+<p><span class="math display">\[\tau_{xy} = \tau_{yx}, \qquad \tau_{yz}
+= \tau_{zy}, \qquad \tau_{xz} = \tau_{zx}\]</span></p>
+<p>so there are only <strong>6 independent stress components</strong>:
+<span class="math inline">\(\sigma_x, \sigma_y, \sigma_z, \tau_{xy},
+\tau_{xz}, \tau_{yz}\)</span>.</p>
+<hr/>
+<h2 id="lec5-equilibrium-equations">5. Equilibrium Equations</h2>
+<p align="center">
+<svg viewBox="0 0 420 260" width="100%" class="svg-w440" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Stresses on the faces of a differential 2D element used to derive the equilibrium equations">
+  <title>Stresses on a differential element</title>
+  <desc>An x-y slice of a small element of size dx by dy. Normal stresses sigma_x and sigma_y act on the faces with increments d-sigma on the far faces, shear stresses tau_xy and tau_yx act along the faces, and body forces q_x and q_y act on the element.</desc>
+  <text x="210" y="18" font-family="Helvetica Neue, Arial, sans-serif" font-size="12" fill="#1e2430" font-weight="600" text-anchor="middle">Differential element (x&ndash;y slice)</text>
+  <g transform="translate(60,50)">
+    <rect x="0" y="0" width="160" height="120" fill="rgba(240,240,240,0.4)" stroke="#4a5264" stroke-width="1.6"/>
+    <line x1="160" y1="30" x2="200" y2="30" stroke="#b5651d" stroke-width="2" marker-end="url(#eqArrowO)"/>
+    <text x="205" y="34" font-family="SF Mono, Consolas, monospace" font-size="11" fill="#b5651d">&#963;_x+d&#963;_x</text>
+    <line x1="0" y1="90" x2="-40" y2="90" stroke="#b5651d" stroke-width="2" marker-end="url(#eqArrowO)"/>
+    <text x="-95" y="94" font-family="SF Mono, Consolas, monospace" font-size="11" fill="#b5651d">&#963;_x</text>
+    <line x1="40" y1="0" x2="40" y2="-30" stroke="#3b7dd8" stroke-width="2" marker-end="url(#eqArrowB)"/>
+    <text x="10" y="-36" font-family="SF Mono, Consolas, monospace" font-size="11" fill="#3b7dd8">&#963;_y+d&#963;_y</text>
+    <line x1="120" y1="120" x2="120" y2="150" stroke="#3b7dd8" stroke-width="2" marker-end="url(#eqArrowB)"/>
+    <text x="95" y="168" font-family="SF Mono, Consolas, monospace" font-size="11" fill="#3b7dd8">&#963;_y</text>
+    <line x1="160" y1="90" x2="185" y2="75" stroke="#7a4a63" stroke-width="1.8" marker-end="url(#eqArrowSm)"/>
+    <text x="188" y="72" font-family="SF Mono, Consolas, monospace" font-size="10" fill="#7a4a63">&#964;_yx</text>
+    <line x1="0" y1="30" x2="-25" y2="45" stroke="#7a4a63" stroke-width="1.8" marker-end="url(#eqArrowSm)"/>
+    <text x="-55" y="50" font-family="SF Mono, Consolas, monospace" font-size="10" fill="#7a4a63">&#964;_yx</text>
+    <line x1="40" y1="0" x2="65" y2="-15" stroke="#7a4a63" stroke-width="1.8" marker-end="url(#eqArrowSm)"/>
+    <text x="65" y="-20" font-family="SF Mono, Consolas, monospace" font-size="10" fill="#7a4a63">&#964;_xy</text>
+    <line x1="120" y1="120" x2="95" y2="135" stroke="#7a4a63" stroke-width="1.8" marker-end="url(#eqArrowSm)"/>
+    <text x="60" y="148" font-family="SF Mono, Consolas, monospace" font-size="10" fill="#7a4a63">&#964;_xy</text>
+    <text x="65" y="65" font-family="Helvetica Neue, Arial, sans-serif" font-size="11" fill="#3b8f6b" font-weight="600" text-anchor="middle">q_x, q_y</text>
+    <text x="180" y="115" font-family="Helvetica Neue, Arial, sans-serif" font-size="11" fill="#4a5264">dx</text>
+    <text x="-15" y="145" font-family="Helvetica Neue, Arial, sans-serif" font-size="11" fill="#4a5264">dy</text>
+  </g>
+  <defs>
+    <marker id="eqArrowO" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#b5651d"/></marker>
+    <marker id="eqArrowB" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#3b7dd8"/></marker>
+    <marker id="eqArrowSm" markerWidth="7" markerHeight="7" refX="3.5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#7a4a63"/></marker>
+  </defs>
+</svg>
+</p>
+<p>Force equilibrium on a differential volume (<span class="math inline">\(S\)</span> = surface, <span class="math inline">\(V\)</span> = volume, <span class="math inline">\(\{q\}=\{q_x,q_y,q_z\}^T\)</span> = body force per unit volume, <span class="math inline">\(T^n\)</span> = surface traction) requires:</p>
+<p><span class="math display">\[\iint_S
+T_i^n\, dS + \iiint_V q_i\, dV = 0\]</span></p>
+<p>(Using the divergence theorem, the surface traction integral is
+converted into a volume integral of stress gradients &mdash; <span class="math inline">\(\iint_S T_i^n\, dS = \iiint_V \partial \sigma_{ji}/\partial
+x_j\, dV\)</span> &mdash; so the entire equation becomes a single
+volume integral. Because this must hold for <em>every</em> differential
+volume, the integrand itself must vanish, which is what turns the
+integral statement into the differential equations below.)</p>
+<p>In index notation, the resulting equilibrium condition can be written
+concisely as:</p>
+<p><span class="math display">\[\frac{\partial \sigma_{ji}}{\partial
+x_j} + q_i = 0 \qquad \text{for } i = x, y, z\]</span></p>
+<p>Here the first subscript of <span class="math inline">\(\sigma_{ji}\)</span> is the one being summed over (matching
+the face-normal/differentiation direction <span class="math inline">\(x_j\)</span>), and the second is the fixed direction of the
+equation &mdash; consistent with the face-first convention from &sect;4,
+without yet needing to invoke stress symmetry. Symmetry of the stress tensor has not been used so far; it follows from moment balance, shown later in this section.</p>
+<p>Expanding this for <span class="math inline">\(i=x,y,z\)</span> gives
+the three <strong>differential equilibrium equations</strong>:</p>
+<p><span class="math display">\[\frac{\partial \sigma_x}{\partial x} +
+\frac{\partial \tau_{yx}}{\partial y} + \frac{\partial
+\tau_{zx}}{\partial z} + q_x = 0\]</span></p>
+<p><span class="math display">\[\frac{\partial \tau_{xy}}{\partial x} +
+\frac{\partial \sigma_y}{\partial y} + \frac{\partial
+\tau_{zy}}{\partial z} + q_y = 0\]</span></p>
+<p><span class="math display">\[\frac{\partial \tau_{xz}}{\partial x} +
+\frac{\partial \tau_{yz}}{\partial y} + \frac{\partial
+\sigma_z}{\partial z} + q_z = 0\]</span></p>
+<p>Summing moments about the element&rsquo;s center &mdash; where, in the
+limit as the element shrinks, only the surface tractions contribute &mdash;
+gives the symmetry of the stress tensor used above:</p>
+<p><span class="math display">\[\sigma_{ij} = \sigma_{ji} \ \Rightarrow\
+\tau_{xy}=\tau_{yx}, \quad \tau_{yz}=\tau_{zy}, \quad
+\tau_{zx}=\tau_{xz}\]</span></p>
+<p><strong>Strong form vs. weak form.</strong> The three differential
+equilibrium equations above, together with the boundary conditions
+introduced in &sect;7, are the <strong>strong form</strong> of the
+elasticity problem: a set of pointwise differential equations that the
+exact displacement field must satisfy at <em>every</em> point in the
+body. The <strong>minimum potential energy</strong> statement in &sect;8
+is the corresponding <strong>weak form</strong> &mdash; a single integral
+(energy) statement that a sufficiently smooth displacement field
+satisfies if and only if it also satisfies the strong form. This is the
+same strong-form/weak-form relationship you will meet again as
+<strong>Galerkin&rsquo;s method</strong> in later courses: the finite
+element method discretizes the weak form directly (via the Ritz
+approximation in &sect;9), which is why it is the energy statement &mdash;
+not the differential equilibrium equations themselves &mdash; that
+actually gets programmed.</p>
+<hr/>
+<h2 id="lec5-constitutive-law-generalized-hookes-law">6. Constitutive Law:
+Generalized Hooke’s Law</h2>
+<p>The general linear elastic relationship between stress and strain
+is</p>
+<p><span class="math display">\[\{\sigma\} = [D]\{\varepsilon\}, \qquad
+\text{or, with initial strains: } \{\sigma\} = [D](\{\varepsilon\} -
+\{\varepsilon_0\})\]</span></p>
+<p>where <span class="math inline">\([D]\)</span> is a symmetric <span class="math inline">\(6\times 6\)</span> material matrix. For an
+isotropic material &mdash; the case used throughout the rest of this
+course &mdash; <span class="math inline">\([D]\)</span> depends on only
+two constants, <span class="math inline">\(E\)</span> and <span class="math inline">\(\nu\)</span>. The explicit entries of <span class="math inline">\([D]\)</span>, the derivation that gets there (1D bar
+law &rarr; Poisson&rsquo;s effect &rarr; 3D superposition), the inverse
+(compliance) form, the 36&rarr;21&rarr;9&rarr;2 constant-count reduction
+for general/orthotropic/isotropic materials, and a live calculator you
+can use to build intuition for how <span class="math inline">\([D]\)</span> changes with <span class="math inline">\(E\)</span> and <span class="math inline">\(\nu\)</span> are all on <a href="10_constitutive_relations.html#matrix-form">&sect;8.0 of
+<em>Constitutive Relations</em></a>. <strong>What we carry forward from
+here is just this:</strong> <span class="math inline">\([D]\)</span> is a
+known, symmetric matrix that turns strain into stress, and it is that
+matrix &mdash; whatever its entries &mdash; that gets inserted into the
+energy expression below and, ultimately, into the element stiffness
+integral.</p>
+<p><strong>Initial strains:</strong> the term <span class="math inline">\(\{\varepsilon_0\}\)</span> accounts for strains that
+exist before any load is applied &mdash; thermal expansion, shrinkage, or
+prestrain. For a purely mechanical problem at a reference temperature,
+<span class="math inline">\(\{\varepsilon_0\}=0\)</span> and the equation
+reduces to <span class="math inline">\(\{\sigma\}=[D]\{\varepsilon\}\)</span>. When thermal strains are
+present, you subtract them from the total strain before computing
+stress: <span class="math inline">\(\{\sigma\} =
+[D](\{\varepsilon_{\text{total}}\} -
+\{\varepsilon_{\text{thermal}}\})\)</span>.</p>
+<hr/>
+<h2 id="lec5-boundary-conditions">7. Boundary Conditions</h2>
+<p align="center">
+<svg viewBox="0 0 380 240" width="100%" class="svg-w400" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A 3D solid with a displacement boundary condition region and a traction boundary condition region marked">
+  <title>Boundary condition regions of a 3D solid</title>
+  <desc>A 3D body whose surface S splits into S_u, where displacements u=U, v=V, w=W are prescribed, and S_T, where tractions p_x, p_y, p_z are known. The two regions are disjoint except where mixed conditions apply.</desc>
+  <g transform="translate(70,60)">
+    <polygon points="0,110 170,110 200,80 30,80" fill="#f0f0f0" stroke="#4a5264" stroke-width="1.4"/>
+    <polygon points="0,110 0,20 30,-10 30,80" fill="#e6e6e6" stroke="#4a5264" stroke-width="1.4"/>
+    <polygon points="0,20 170,20 200,-10 30,-10" fill="rgba(59,125,216,0.18)" stroke="#3b7dd8" stroke-width="2"/>
+    <polygon points="0,110 170,110 170,20 0,20" fill="rgba(181,101,29,0.15)" stroke="#b5651d" stroke-width="2"/>
+    <text x="100" y="-20" font-family="Helvetica Neue, Arial, sans-serif" font-size="12" fill="#3b7dd8" font-weight="600" text-anchor="middle">S_u &mdash; displacement BC</text>
+    <text x="100" y="-6" font-family="SF Mono, Consolas, monospace" font-size="11" fill="#3b7dd8" text-anchor="middle">u=U, v=V, w=W</text>
+    <text x="85" y="65" font-family="Helvetica Neue, Arial, sans-serif" font-size="12" fill="#b5651d" font-weight="600" text-anchor="middle">S_T &mdash; traction BC</text>
+    <text x="85" y="80" font-family="SF Mono, Consolas, monospace" font-size="11" fill="#b5651d" text-anchor="middle">p_x, p_y, p_z known</text>
+  </g>
+  <text x="190" y="225" font-family="Helvetica Neue, Arial, sans-serif" font-size="11" fill="#4a5264" text-anchor="middle">S = S_T &cup; S_u, disjoint except where mixed</text>
+</svg>
+</p>
+<p>Two types of boundary conditions can be prescribed on the surface of
+the body, <span class="math inline">\(S = S_T \cup S_u\)</span>:</p>
+<p><strong>Traction (Neumann) boundary conditions</strong>, prescribed
+on <span class="math inline">\(S_T\)</span>, the portion of the surface
+where surface tractions <span class="math inline">\(p_x, p_y,
+p_z\)</span> are known:</p>
+<p><span class="math display">\[\sigma_x n_x + \tau_{yx} n_y + \tau_{zx}
+n_z = p_x(\vec x)\]</span> <span class="math display">\[\tau_{xy} n_x +
+\sigma_y n_y + \tau_{zy} n_z = p_y(\vec x)\]</span> <span class="math display">\[\tau_{xz} n_x + \tau_{yz} n_y + \sigma_z n_z =
+p_z(\vec x)\]</span></p>
+<p>where <span class="math inline">\(n_x, n_y, n_z\)</span> are the
+direction cosines of the outward normal to the surface.</p>
+<p><strong>Displacement (Dirichlet) boundary conditions</strong>,
+prescribed on <span class="math inline">\(S_u\)</span>, the portion of
+the surface where displacements are known:</p>
+<p><span class="math display">\[u(\vec x) = U(\vec x), \qquad v(\vec x)
+= V(\vec x), \qquad w(\vec x) = W(\vec x) \quad \text{for } \vec x \in
+S_u\]</span></p>
+<table>
+<thead>
+<tr class="header">
+<th></th>
+<th>Prescribed quantity</th>
+<th>Surface region</th>
+<th>Also known as</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Traction BC</td>
+<td><span class="math inline">\(p_x, p_y, p_z\)</span></td>
+<td><span class="math inline">\(S_T\)</span></td>
+<td>Neumann</td>
+</tr>
+<tr class="even">
+<td>Displacement BC</td>
+<td><span class="math inline">\(U, V, W\)</span></td>
+<td><span class="math inline">\(S_u\)</span></td>
+<td>Dirichlet</td>
+</tr>
+</tbody>
+</table>
+<p>Every point on the boundary belongs to exactly one of these two
+regions (or has some components prescribed as displacement and others as
+traction).</p>
+<hr/>
+<h2 id="lec5-principle-of-minimum-potential-energy">8. Principle of Minimum
+Potential Energy</h2>
+<p>The principle itself, and its derivation from the strong form, is covered in
+detail for the 1D bar and 2D frame element in
+<a href="09_energy_methods_fe_formulation.html">Energy Methods and the Finite
+Element Formulation</a>. What follows extends the same energy statement to a
+general 3D solid.</p>
+<p>For a linear elastic body subjected to body forces <span class="math inline">\(\{q\}=\{q_x,q_y,q_z\}^T\)</span> and surface
+tractions <span class="math inline">\(\{p\}=\{p_x,p_y,p_z\}^T\)</span>,
+causing displacements <span class="math inline">\(\{u\}=\{u,v,w\}^T\)</span>, strains <span class="math inline">\(\{\varepsilon\}\)</span>, and stresses <span class="math inline">\(\{\sigma\}\)</span>, the <strong>potential
+energy</strong> <span class="math inline">\(\Pi\)</span> is the strain
+energy minus the potential energy of the loads:</p>
+<p><strong>Strain energy of the elastic body:</strong></p>
+<p><span class="math display">\[U = \frac{1}{2}\int_V
+\left(\sigma_{xx}\varepsilon_{xx} + \sigma_{yy}\varepsilon_{yy} +
+\sigma_{zz}\varepsilon_{zz} + \tau_{xy}\gamma_{xy} +
+\tau_{xz}\gamma_{xz} + \tau_{yz}\gamma_{yz}\right) dV =
+\frac{1}{2}\int_V \{\sigma\}^T\{\varepsilon\}\, dV\]</span></p>
+<p>(Compare to the 1D case you already know: <span class="math inline">\(U = \frac{1}{2}\int_0^L \sigma\varepsilon A\,
+dx\)</span> — same idea, now integrated over a volume with 6
+stress/strain components instead of 1.)</p>
+<p><strong>Potential energy of the loads:</strong></p>
+<p><span class="math display">\[W = \int_V \left(uq_x+vq_y+wq_z\right)
+dV + \int_{S_T} \left(up_x+vp_y+wp_z\right) dS = \int_V \{u\}^T\{q\}\,
+dV + \int_{S_T} \{u\}^T\{p\}\, dS\]</span></p>
+<p><strong>Total potential energy:</strong></p>
+<p><span class="math display">\[\Pi = \frac{1}{2}\int_V
+\{\sigma\}^T\{\varepsilon\}\, dV - \int_V \{u\}^T\{q\}\, dV - \int_{S_T}
+\{u\}^T\{p\}\, dS\]</span></p>
+<p><strong>Principle of minimum potential energy:</strong> Among all
+admissible displacement fields, the one that satisfies the equilibrium
+equations also renders <span class="math inline">\(\Pi\)</span> a
+minimum. An “admissible displacement field” is one for which:</p>
+<ol type="1">
+<li>First derivatives of the displacement components exist, and</li>
+<li>It satisfies the boundary conditions on <span class="math inline">\(S_u\)</span>.</li>
+</ol>
+<p>For a continuous system, solving the elastic problem reduces to
+finding the displacement field that minimizes <span class="math inline">\(\Pi\)</span>. <strong>For this displacement-based
+linear-elastic formulation, the finite element approximation can be
+viewed as a Rayleigh&ndash;Ritz approximation using piecewise shape
+functions</strong> in place of the displacement field's nodal values.
+(Other finite element formulations — e.g. mixed, hybrid, or
+displacement-discontinuous methods — depart from this Ritz picture; the
+identification made here applies to the standard displacement-based
+element built in this lecture.)</p>
+<hr/>
+<h2 id="lec5-finite-element-approximation-ritz-method">9. Finite Element
+Approximation (Rayleigh&ndash;Ritz Method)</h2>
+<p align="center">
+<svg viewBox="0 0 340 300" width="100%" class="svg-w320" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Flowchart from the continuous minimum potential energy problem to the discrete finite element equations">
+  <title>From the continuous problem to the finite element equations</title>
+  <desc>Four-step flowchart: 1, the continuous problem of minimizing the potential energy; 2, the Ritz approximation u = [N]{u^e} from nodal degrees of freedom; 3, deriving [K] and {f^e}; 4, solving [K]{u^e} = {f^e} after global assembly and boundary conditions.</desc>
+  <g font-family="Helvetica Neue, Arial, sans-serif" font-size="12">
+    <rect x="10" y="10" width="320" height="50" rx="7" fill="rgba(59,125,216,0.10)" stroke="#3b7dd8" stroke-width="1.6"/>
+    <text x="170" y="30" fill="#1e2430" font-weight="600" text-anchor="middle">1. Continuous problem</text>
+    <text x="170" y="47" font-family="SF Mono, Consolas, monospace" font-size="11" fill="#3b7dd8" text-anchor="middle">minimize &#928;[{u(x,y,z)}]</text>
+
+    <line x1="170" y1="60" x2="170" y2="80" stroke="#4a5264" stroke-width="1.6" marker-end="url(#feArrow)"/>
+
+    <rect x="10" y="80" width="320" height="60" rx="7" fill="rgba(181,101,29,0.10)" stroke="#b5651d" stroke-width="1.6"/>
+    <text x="170" y="100" fill="#1e2430" font-weight="600" text-anchor="middle">2. Ritz approximation</text>
+    <text x="170" y="117" font-family="SF Mono, Consolas, monospace" font-size="11" fill="#b5651d" text-anchor="middle">{u} &#8776; [N]{u^e}</text>
+    <text x="170" y="132" font-size="10" fill="#4a5264" text-anchor="middle">interpolate from nodal DOFs</text>
+
+    <line x1="170" y1="140" x2="170" y2="160" stroke="#4a5264" stroke-width="1.6" marker-end="url(#feArrow)"/>
+
+    <rect x="10" y="160" width="320" height="60" rx="7" fill="rgba(59,143,107,0.10)" stroke="#3b8f6b" stroke-width="1.6"/>
+    <text x="170" y="180" fill="#1e2430" font-weight="600" text-anchor="middle">3. Derive [K] and {f^e}</text>
+    <text x="170" y="197" font-family="SF Mono, Consolas, monospace" font-size="11" fill="#3b8f6b" text-anchor="middle">[K]=&#8747;[B]&#7488;[D][B]dV</text>
+    <text x="170" y="212" font-family="SF Mono, Consolas, monospace" font-size="11" fill="#3b8f6b" text-anchor="middle">{f^e}=&#8747;[N]&#7488;{q}dV+&#8747;[N]&#7488;{p}dS</text>
+
+    <line x1="170" y1="220" x2="170" y2="240" stroke="#4a5264" stroke-width="1.6" marker-end="url(#feArrow)"/>
+
+    <rect x="10" y="240" width="320" height="50" rx="7" fill="rgba(122,74,99,0.10)" stroke="#7a4a63" stroke-width="1.6"/>
+    <text x="170" y="260" fill="#1e2430" font-weight="600" text-anchor="middle">4. Solve [K]{u^e} = {f^e}</text>
+    <text x="170" y="277" font-size="10" fill="#4a5264" text-anchor="middle">assemble globally, apply BCs, solve</text>
+  </g>
+  <defs>
+    <marker id="feArrow" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#4a5264"/></marker>
+  </defs>
+</svg>
+</p>
+<p>See <a href="09_energy_methods_fe_formulation.html">Energy Methods and the
+Finite Element Formulation</a> for a full worked introduction to the
+Ritz method on a simpler 1D/2D element before working through the
+3D generalization below.</p>
+<p>The Ritz method approximates the unknown displacement field as a
+linear combination of known <strong>shape functions</strong> <span class="math inline">\(N_i(\vec x)\)</span> and unknown nodal parameters
+<span class="math inline">\(u_i, v_i, w_i\)</span>:</p>
+<p><span class="math display">\[u(\vec x) \approx \sum_{i=1}^n N_i(\vec
+x)\, u_i, \qquad
+v(\vec x) \approx \sum_{i=1}^n N_i(\vec x)\, v_i, \qquad
+w(\vec x) \approx \sum_{i=1}^n N_i(\vec x)\, w_i\]</span></p>
+<p>where <span class="math inline">\(n\)</span> is the number of nodes
+in the element (<span class="math inline">\(n=8\)</span> for the
+hexahedral element used in this lecture). The shape functions satisfy
+the interpolation property</p>
+<p><span class="math display">\[N_i(\vec x) = \begin{cases} 1, &amp;
+\vec x = \vec x_i \\ 0, &amp; \vec x = \vec x_k,\ k \neq
+i\end{cases}\]</span></p>
+<p>and the <strong>partition of unity</strong> condition:</p>
+<p><span class="math display">\[\sum_{i=1}^n N_i(\vec x) = 1 \quad
+\text{everywhere in the element}\]</span></p>
+<p>For the 8-node hexahedron, the shape functions are typically written
+in terms of the natural coordinates <span class="math inline">\((\xi,\eta,\zeta)\)</span> introduced in the next lecture, and are
+<strong>trilinear</strong> &mdash; linear in each coordinate direction:</p>
+<p><span class="math display">\[N_i(\xi,\eta,\zeta) = \frac{1}{8}(1 \pm
+\xi)(1 \pm \eta)(1 \pm \zeta)\]</span></p>
+<p>where the sign pattern in each factor matches the sign of node <span class="math inline">\(i\)</span>&rsquo;s coordinate (e.g. the node at
+<span class="math inline">\((\xi,\eta,\zeta)=(1,1,1)\)</span> uses all
+plus signs, the node at <span class="math inline">\((-1,1,1)\)</span>
+uses a minus sign only on the <span class="math inline">\(\xi\)</span>
+factor, and so on). These same functions interpolate both the geometry
+and the displacements &mdash; the <strong>isoparametric</strong>
+concept covered in the next lecture.</p>
+<blockquote>
+<p>The shape functions above are written in the <strong>parent (natural)
+coordinates</strong>. How we map them onto a distorted physical element
+is the subject of the next lecture (<em>Isoparametric Elements</em>).
+For the derivation of <span class="math inline">\([K]\)</span> that
+follows, we only need the existence of <span class="math inline">\(N_i(\vec x)\)</span> and their derivatives &mdash; not yet the
+details of how <span class="math inline">\(\vec x\)</span> and
+<span class="math inline">\((\xi,\eta,\zeta)\)</span> relate.</p>
+</blockquote>
+<p>In matrix form, for each displacement component:</p>
+<p><span class="math display">\[u(\vec x) = [N_1(\vec x)\ N_2(\vec x)\
+\cdots\ N_n(\vec
+x)]\begin{Bmatrix}u_1\\u_2\\\vdots\\u_n\end{Bmatrix}\]</span></p>
+<p>and, stacking all three components, the full <strong>displacement
+vector</strong> at any point <span class="math inline">\(\vec x\)</span>
+is written compactly as</p>
+<p><span class="math display">\[\{u(\vec x)\} = [N(\vec
+x)]\{u^e\}\]</span></p>
+<p><span class="math display">\[\underbrace{\{u(\vec x)\}}_{3\times 1}
+= \underbrace{[N(\vec x)]}_{3\times 3n}\ \underbrace{\{u^e\}}_{3n\times
+1}\]</span></p>
+<p>where <span class="math inline">\(\{u^e\}\)</span> is the vector of
+all nodal displacements for the element (24 entries for the 8-node
+hexahedron: <span class="math inline">\(u_1,v_1,w_1,\dots,u_8,v_8,w_8\)</span>).</p>
+<h3 id="lec5-straindisplacement-relationship">Strain–Displacement
+Relationship</h3>
+<p>Differentiating the interpolated displacement field gives the strains
+directly in terms of nodal displacements. For example,</p>
+<p><span class="math display">\[\varepsilon_{xx}(\vec x) =
+\frac{\partial u(\vec x)}{\partial x} = \frac{\partial}{\partial
+x}\sum_{i=1}^n N_i(\vec x)\, u_i = \sum_{i=1}^n N_{i,x}\,
+u_i\]</span></p>
+<p>with <span class="math inline">\(N_{i,x} \equiv \partial N_i/\partial
+x\)</span>, and similarly for <span class="math inline">\(\varepsilon_{yy}, \varepsilon_{zz}\)</span>, and
+(combining derivatives of <span class="math inline">\(u\)</span> and
+<span class="math inline">\(v\)</span>, <span class="math inline">\(u\)</span> and <span class="math inline">\(w\)</span>, <span class="math inline">\(v\)</span>
+and <span class="math inline">\(w\)</span>) the three shear strains.
+Collecting all six strain components:</p>
+<p><span class="math display">\[\{\varepsilon(\vec x)\} = [B(\vec
+x)]\{u^e\}\]</span></p>
+<p><span class="math display">\[\underbrace{\{\varepsilon(\vec
+x)\}}_{6\times 1} = \underbrace{[B(\vec x)]}_{6\times 3n}\
+\underbrace{\{u^e\}}_{3n\times 1}\]</span></p>
+<p>where <span class="math inline">\([B]\)</span> (the
+<strong>strain-displacement matrix</strong>) contains only derivatives
+of the shape functions.</p>
+<h4 id="lec5-deriving-the-b-matrix">Deriving the [B] Matrix</h4>
+<p>To see explicitly where the entries of <span class="math inline">\([B]\)</span> come from, write out the first strain
+component. Since <span class="math inline">\(u(\vec x) =
+\sum_{i=1}^8 N_i(\vec x)\, u_i\)</span> for the 8-node hexahedron:</p>
+<p><span class="math display">\[\varepsilon_{xx} = \frac{\partial
+u}{\partial x} = \sum_{i=1}^8 \frac{\partial N_i}{\partial x}\, u_i =
+N_{1,x}u_1 + N_{2,x}u_2 + \cdots + N_{8,x}u_8\]</span></p>
+<p>Because <span class="math inline">\(\varepsilon_{xx}\)</span> does
+not depend on any of the <span class="math inline">\(v_i\)</span> or
+<span class="math inline">\(w_i\)</span> nodal values, the first row of
+<span class="math inline">\([B]\)</span> &mdash; the row that, multiplied
+into <span class="math inline">\(\{u^e\}\)</span>, produces <span class="math inline">\(\varepsilon_{xx}\)</span> &mdash; has zeros in every
+column except the <span class="math inline">\(u_i\)</span> columns:</p>
+<p><span class="math display">\[\text{row 1 of } [B] = \left[\,
+N_{1,x}\ \ 0\ \ 0\ \ \Big|\ \ N_{2,x}\ \ 0\ \ 0\ \ \Big|\ \ \cdots\ \
+\Big|\ \ N_{8,x}\ \ 0\ \ 0\, \right]\]</span></p>
+<p>The remaining five rows follow the same logic applied to
+<span class="math inline">\(\varepsilon_{yy}, \varepsilon_{zz},
+\gamma_{xy}, \gamma_{xz}, \gamma_{yz}\)</span>, giving the full
+<span class="math inline">\(6\times 24\)</span> matrix (shown here for
+node <span class="math inline">\(i\)</span>&rsquo;s three columns; the
+same block repeats for <span class="math inline">\(i=1,\dots,8\)</span>):</p>
+<p><span class="math display">\[[B] = \big[\,[B_1]\ \ [B_2]\ \ \cdots\
+\ [B_8]\,\big], \qquad
+[B_i] = \begin{bmatrix}
+N_{i,x} &amp; 0 &amp; 0 \\
+0 &amp; N_{i,y} &amp; 0 \\
+0 &amp; 0 &amp; N_{i,z} \\
+N_{i,y} &amp; N_{i,x} &amp; 0 \\
+N_{i,z} &amp; 0 &amp; N_{i,x} \\
+0 &amp; N_{i,z} &amp; N_{i,y}
+\end{bmatrix}\]</span></p>
+<p>Each <span class="math inline">\(6\times 3\)</span> block <span class="math inline">\([B_i]\)</span> multiplies the corresponding <span class="math inline">\(\{u_i, v_i, w_i\}^T\)</span> triple from <span class="math inline">\(\{u^e\}\)</span>; stacking all eight blocks
+side by side gives the complete <span class="math inline">\(6\times 24\)</span> matrix used in the stiffness integral
+below.</p>
+<details class="tool-collapse">
+<summary>Show the full 6&times;24 [B] pattern</summary>
+<div class="tool-body">
+<p>The eight 6&times;3 blocks side by side. Column headers name the nodal DOF each column multiplies; row labels name the strain it produces.</p>
+<div class="scroll-x">
+<span class="math display">\[\begin{array}{r|ccc|ccc|ccc|ccc|ccc|ccc|ccc|ccc}
+ & u_1 & v_1 & w_1 & u_2 & v_2 & w_2 & u_3 & v_3 & w_3 & u_4 & v_4 & w_4 & u_5 & v_5 & w_5 & u_6 & v_6 & w_6 & u_7 & v_7 & w_7 & u_8 & v_8 & w_8 \\ \hline
+\varepsilon_{xx} & N_{1,x} & 0 & 0 & N_{2,x} & 0 & 0 & N_{3,x} & 0 & 0 & N_{4,x} & 0 & 0 & N_{5,x} & 0 & 0 & N_{6,x} & 0 & 0 & N_{7,x} & 0 & 0 & N_{8,x} & 0 & 0 \\
+\varepsilon_{yy} & 0 & N_{1,y} & 0 & 0 & N_{2,y} & 0 & 0 & N_{3,y} & 0 & 0 & N_{4,y} & 0 & 0 & N_{5,y} & 0 & 0 & N_{6,y} & 0 & 0 & N_{7,y} & 0 & 0 & N_{8,y} & 0 \\
+\varepsilon_{zz} & 0 & 0 & N_{1,z} & 0 & 0 & N_{2,z} & 0 & 0 & N_{3,z} & 0 & 0 & N_{4,z} & 0 & 0 & N_{5,z} & 0 & 0 & N_{6,z} & 0 & 0 & N_{7,z} & 0 & 0 & N_{8,z} \\
+\gamma_{xy} & N_{1,y} & N_{1,x} & 0 & N_{2,y} & N_{2,x} & 0 & N_{3,y} & N_{3,x} & 0 & N_{4,y} & N_{4,x} & 0 & N_{5,y} & N_{5,x} & 0 & N_{6,y} & N_{6,x} & 0 & N_{7,y} & N_{7,x} & 0 & N_{8,y} & N_{8,x} & 0 \\
+\gamma_{xz} & N_{1,z} & 0 & N_{1,x} & N_{2,z} & 0 & N_{2,x} & N_{3,z} & 0 & N_{3,x} & N_{4,z} & 0 & N_{4,x} & N_{5,z} & 0 & N_{5,x} & N_{6,z} & 0 & N_{6,x} & N_{7,z} & 0 & N_{7,x} & N_{8,z} & 0 & N_{8,x} \\
+\gamma_{yz} & 0 & N_{1,z} & N_{1,y} & 0 & N_{2,z} & N_{2,y} & 0 & N_{3,z} & N_{3,y} & 0 & N_{4,z} & N_{4,y} & 0 & N_{5,z} & N_{5,y} & 0 & N_{6,z} & N_{6,y} & 0 & N_{7,z} & N_{7,y} & 0 & N_{8,z} & N_{8,y}
+\end{array}\]</span>
+</div>
+</div>
+</details>
+<div class="fem-note"><strong>Sanity check &mdash; rigid-body motion must give zero strain.</strong> A body that only
+translates or rotates as a whole does not stretch or shear, so a correct <span class="math inline">\([B]\)</span> must return
+<span class="math inline">\(\{\varepsilon\}=\{0\}\)</span> for both motions.
+<p><em>Pure translation.</em> Take <span class="math inline">\(u=c_x,\ v=c_y,\ w=c_z\)</span>, so every nodal value is the same constant (<span class="math inline">\(u_i=c_x\)</span> for all <span class="math inline">\(i\)</span>, and likewise for <span class="math inline">\(v_i, w_i\)</span>). Then, using the partition of unity <span class="math inline">\(\sum_i N_i = 1\)</span>,</p>
+<p><span class="math display">\[\varepsilon_{xx} = \sum_i N_{i,x}\,c_x = c_x\,\frac{\partial}{\partial x}\Big(\sum_i N_i\Big) = c_x\,\frac{\partial (1)}{\partial x} = 0,\]</span></p>
+<p>and the same argument gives <span class="math inline">\(\varepsilon_{yy}=\varepsilon_{zz}=\gamma_{xy}=\gamma_{xz}=\gamma_{yz}=0\)</span>. Hence <span class="math inline">\(\{\varepsilon\}=\{0\}\)</span>.</p>
+<p><em>Infinitesimal rigid rotation.</em> For small rotations <span class="math inline">\(\omega_x,\omega_y,\omega_z\)</span> about the axes, the displacement field is</p>
+<p><span class="math display">\[u = \omega_y z - \omega_z y, \qquad v = \omega_z x - \omega_x z, \qquad w = \omega_x y - \omega_y x.\]</span></p>
+<p>The normal strains vanish because each component does not depend on its own coordinate (for example <span class="math inline">\(\partial u/\partial x = 0\)</span>), and each shear strain is a difference that cancels:</p>
+<p><span class="math display">\[\gamma_{xy} = \frac{\partial u}{\partial y} + \frac{\partial v}{\partial x} = -\omega_z + \omega_z = 0, \quad
+\gamma_{xz} = \omega_y - \omega_y = 0, \quad \gamma_{yz} = -\omega_x + \omega_x = 0.\]</span></p>
+<p>This field is linear in <span class="math inline">\(x,y,z\)</span>, and the trilinear shape functions reproduce linear fields exactly, so <span class="math inline">\([B]\{u^e\}\)</span> built from the nodal values of this field is also exactly zero.</p>
+<p><strong>Implication for debugging your own code:</strong> if a computed <span class="math inline">\([B]\)</span> produces nonzero strain under a rigid
+translation or rotation, the shape-function derivatives, the node ordering, or the
+coordinate transformation feeding into <span class="math inline">\([B]\)</span> has a bug &mdash; this is one of the
+fastest checks to run on a new element implementation before trusting
+any of its stress output.</p></div>
+<details class="check-prompt">
+<summary>Check your understanding: First row of [B_i]</summary>
+<div class="answer">
+<p>Write the first row of <span class="math inline">\([B_i]\)</span>.</p>
+<p><em>Answer:</em> <span class="math inline">\([\,N_{i,x}\ \ 0\ \
+0\,]\)</span> &mdash; it picks out <span class="math inline">\(\partial
+N_i/\partial x\)</span> to multiply <span class="math inline">\(u_i\)</span>, and zeros for <span class="math inline">\(v_i\)</span>
+and <span class="math inline">\(w_i\)</span>, since row 1 of the full
+<span class="math inline">\([B]\)</span> matrix produces <span class="math inline">\(\varepsilon_{xx}\)</span>, which depends only on
+<span class="math inline">\(u\)</span>.</p>
+</div>
+</details>
+<details class="tool-collapse">
+<summary>Try it: Build a [B_i] Block</summary>
+<div class="tool-body">
+<p>In practice the three shape-function derivatives below come from the
+isoparametric mapping covered in the next lecture. Enter any numeric
+values for them here to see the resulting <span class="math inline">\(6\times 3\)</span> block <span class="math inline">\([B_i]\)</span>, assembled from the pattern above, populate
+live.</p>
+<div class="calc-grid calc-grid-narrow">
+  <div class="calc-field"><label for="bNx">N<sub>i,x</sub></label><input id="bNx" type="number" value="0.50" step="0.05"></div>
+  <div class="calc-field"><label for="bNy">N<sub>i,y</sub></label><input id="bNy" type="number" value="0.30" step="0.05"></div>
+  <div class="calc-field"><label for="bNz">N<sub>i,z</sub></label><input id="bNz" type="number" value="0.20" step="0.05"></div>
+</div>
+<button type="button" class="calc-btn" id="buildBBtn">Build [B<sub>i</sub>]</button><button type="button" class="calc-btn calc-btn-secondary" id="resetBBtn">Reset to example values</button>
+<div id="bOutput" class="calc-output" aria-live="polite">Click &ldquo;Build [B_i]&rdquo; to see the block.</div>
+</div>
+</details>
+<script>
+(function () {
+  var btn = document.getElementById('buildBBtn');
+  var resetBtn = document.getElementById('resetBBtn');
+  var outEl = document.getElementById('bOutput');
+  if (!btn || !outEl) return;
+  var initialMsg = outEl.textContent;
+  // Example values: the starting entries shown in the three fields.
+  var defaults = { bNx: '0.50', bNy: '0.30', bNz: '0.20' };
+  var ids = Object.keys(defaults);
+
+  function labelOf(id) {
+    var l = document.querySelector('label[for="' + id + '"]');
+    return l ? l.textContent : id;
+  }
+  function clearInvalid(el) {
+    el.classList.remove('invalid');
+    el.removeAttribute('aria-invalid');
+  }
+  ids.forEach(function (id) {
+    document.getElementById(id).addEventListener('input', function () { clearInvalid(this); });
+  });
+
+  btn.addEventListener('click', function () {
+    var vals = {}, bad = [];
+    ids.forEach(function (id) {
+      var el = document.getElementById(id);
+      var raw = el.value.trim();
+      var n = parseFloat(raw);
+      if (raw === '' || !isFinite(n)) {
+        bad.push(labelOf(id));
+        el.classList.add('invalid');
+        el.setAttribute('aria-invalid', 'true');
+      } else {
+        clearInvalid(el);
+        vals[id] = n;
+      }
+    });
+    if (bad.length) {
+      outEl.classList.add('error');
+      outEl.textContent = 'Every field needs a number. Missing or invalid: ' + bad.join(', ') + '.';
+      return;
+    }
+    outEl.classList.remove('error');
+    var nx = vals.bNx, ny = vals.bNy, nz = vals.bNz;
+    function fmt(n) { return (Math.round(n * 1000) / 1000).toString(); }
+    var rows = [
+      [nx, 0, 0],
+      [0, ny, 0],
+      [0, 0, nz],
+      [ny, nx, 0],
+      [nz, 0, nx],
+      [0, nz, ny]
+    ];
+    var labels = ['row 1 (\u03B5_xx)', 'row 2 (\u03B5_yy)', 'row 3 (\u03B5_zz)', 'row 4 (\u03B3_xy)', 'row 5 (\u03B3_xz)', 'row 6 (\u03B3_yz)'];
+    var out = '[B_i] =\n';
+    for (var r = 0; r < 6; r++) {
+      out += '  [ ' + fmt(rows[r][0]) + '\t' + fmt(rows[r][1]) + '\t' + fmt(rows[r][2]) + ' ]   ' + labels[r] + '\n';
+    }
+    outEl.textContent = out;
+  });
+
+  resetBtn.addEventListener('click', function () {
+    ids.forEach(function (id) {
+      var el = document.getElementById(id);
+      el.value = defaults[id];
+      clearInvalid(el);
+    });
+    outEl.classList.remove('error');
+    outEl.textContent = initialMsg;
+  });
+})();
+</script>
+<h3 id="lec5-stressdisplacement-relationship">Stress–Displacement
+Relationship</h3>
+<p>Combining the strain-displacement relationship with Hooke’s law,
+<span class="math inline">\(\{\sigma\} =
+[D]\{\varepsilon\}\)</span>:</p>
+<p><span class="math display">\[\{\sigma(\vec x)\} = [D]\{\varepsilon(\vec
+x)\} = [D][B(\vec x)]\{u^e\}\]</span></p>
+<p>(<span class="math inline">\([D]\)</span> is constant here since the
+material is isotropic and homogeneous; write <span class="math inline">\([D(\vec x)]\)</span> instead if the material properties
+vary in space.)</p>
+<p><span class="math display">\[\underbrace{\{\sigma(\vec
+x)\}}_{6\times 1} = \underbrace{[D]}_{6\times 6}\
+\underbrace{[B(\vec x)]}_{6\times 3n}\
+\underbrace{\{u^e\}}_{3n\times 1}\]</span></p>
+<div class="note">
+<strong>Aside — checking units:</strong> carrying the dimensions all the way through catches the exact class of
+implementation error a matrix shape mismatch would throw at you before
+you ever run the code: <span class="math inline">\([N]\)</span> is
+dimensionless (a pure interpolation weight); <span class="math inline">\([B]\)</span> carries units of <span class="math inline">\(1/\text{length}\)</span> (it's built from spatial
+derivatives of <span class="math inline">\([N]\)</span>); <span class="math inline">\([D]\)</span> carries units of stress; and each
+factor of <span class="math inline">\([B]\)</span> inside <span class="math inline">\(K_e=\int B^T D B\, dV\)</span> contributes a
+<span class="math inline">\(1/\text{length}\)</span> while <span class="math inline">\(dV\)</span> contributes <span class="math inline">\(\text{length}^3\)</span>, leaving <span class="math inline">\(K_e\)</span> with units of <span class="math inline">\(\text{stress}\times\text{length} =
+\text{force}/\text{length}\)</span> — exactly what a stiffness (force
+per unit displacement) should be.
+</div>
+<p><strong>Summary of the three relationships used from here
+on:</strong></p>
+<p><span class="math display">\[\{u\} = [N]\{u^e\} \qquad
+\{\varepsilon\} = [B]\{u^e\} \qquad \{\sigma\} =
+[D][B]\{u^e\}\]</span></p>
+<hr/>
+<h2 id="lec5-deriving-the-element-stiffness-matrix">10. Deriving the Element
+Stiffness Matrix</h2>
+<p><strong>Step 1 — substitute displacement and strain approximations
+into <span class="math inline">\(\Pi\)</span>.</strong> Starting
+from</p>
+<p><span class="math display">\[\Pi = \frac{1}{2}\int_V
+\sigma^T\varepsilon\, dV - \int_V \{u\}^T\{q\}\, dV - \int_S \{u\}^T\{p\}\,
+dS\]</span></p>
+<p>substitute <span class="math inline">\(\{u\}=[N]\{u^e\}\)</span> (so
+<span class="math inline">\(\{u\}^T = \{u^e\}^T[N]^T\)</span>) and <span class="math inline">\(\{\varepsilon\}=[B]\{u^e\}\)</span>, <span class="math inline">\(\{\sigma\}=[D][B]\{u^e\}\)</span> (so <span class="math inline">\(\{\sigma\}^T = \{u^e\}^T[B]^T[D]^T =
+\{u^e\}^T[B]^T[D]\)</span>, using symmetry of <span class="math inline">\([D]\)</span>):</p>
+<p><span class="math display">\[\Pi = \frac{1}{2}\int_V
+\{u^e\}^T[B]^T[D][B]\{u^e\}\, dV - \int_V \{u^e\}^T[N]^T\{q\}\, dV -
+\int_S \{u^e\}^T[N]^T\{p\}\, dS\]</span></p>
+<p><strong>Step 2 — pull the constant nodal displacement vector <span class="math inline">\(\{u^e\}\)</span> outside each integral</strong>
+(it does not depend on <span class="math inline">\(\vec x\)</span>):</p>
+<p><span class="math display">\[\Pi = \{u^e\}^T\left[\frac{1}{2}\int_V
+[B]^T[D][B]\, dV\right]\{u^e\} - \{u^e\}^T\int_V [N]^T\{q\}\, dV -
+\{u^e\}^T\int_S [N]^T\{p\}\, dS\]</span></p>
+<p class="aside">Pulling <span class="math inline">\(\{u^e\}^T\)</span> and <span class="math inline">\(\{u^e\}\)</span> outside the integrals is legitimate only because the nodal values are independent of <span class="math inline">\(\vec x\)</span>; all spatial dependence sits in <span class="math inline">\([N]\)</span> and <span class="math inline">\([B]\)</span>.</p>
+<p>Define the <strong>element stiffness matrix</strong> (symmetric,
+since <span class="math inline">\([D]\)</span> is symmetric):</p>
+<p><span class="math display">\[\underbrace{[K]}_{3n\times 3n} =
+\int_V \underbrace{[B]^T}_{3n\times 6}\, \underbrace{[D]}_{6\times 6}\,
+\underbrace{[B]}_{6\times 3n}\, dV\]</span></p>
+<p class="aside">For the 8-node hexahedron, <span class="math inline">\(n=8\)</span>, so <span class="math inline">\([K]\)</span> is <span class="math inline">\(24\times 24\)</span> — matching the 24 degrees of
+freedom in <span class="math inline">\(\{u^e\}\)</span> (3 per node
+&times; 8 nodes). Each factor's shape has to line up for the matrix
+multiply to even be defined: <span class="math inline">\([B]^T\)</span> is <span class="math inline">\(3n\times 6\)</span>, times <span class="math inline">\([D]\)</span>'s <span class="math inline">\(6\times 6\)</span>, times <span class="math inline">\([B]\)</span>'s <span class="math inline">\(6\times 3n\)</span>, giving <span class="math inline">\(3n\times 3n\)</span> — if your own code's shapes
+don't multiply out this way, something upstream (usually the number of
+nodes or DOFs per node) is wrong.</p>
+<p><strong>Step 3 — minimize <span class="math inline">\(\Pi\)</span>
+with respect to the nodal displacements.</strong> This uses the same
+quadratic-form calculus you used for the 1D and 2D stiffness
+derivations:</p>
+<blockquote>
+<p><strong>Aside — differentiating a quadratic form.</strong> For <span class="math inline">\(U = \{u\}^T[K]\{u\}\)</span> with <span class="math inline">\(\{u\}=\{u_1,u_2\}^T\)</span> and symmetric <span class="math inline">\([K]=\begin{bmatrix}k_{11}&amp;k_{12}\\k_{12}&amp;k_{22}\end{bmatrix}\)</span>:
+<span class="math display">\[U = k_{11}u_1^2 + 2k_{12}u_1u_2 +
+k_{22}u_2^2\]</span> <span class="math display">\[\frac{\partial
+U}{\partial u_1} = 2(k_{11}u_1+k_{12}u_2), \qquad \frac{\partial
+U}{\partial u_2} = 2(k_{12}u_1+k_{22}u_2)\]</span> <span class="math display">\[\left\{\frac{\partial U}{\partial u}\right\} =
+2[K]\{u\}\]</span> The same rule generalizes to any number of degrees of
+freedom.</p>
+</blockquote>
+<p>Applying this to <span class="math inline">\(\Pi\)</span> and setting
+<span class="math inline">\(\partial\Pi/\partial\{u^e\} =
+\{0\}\)</span>:</p>
+<p><span class="math display">\[[K]\{u^e\} - \int_V [N]^T\{q\}\, dV -
+\int_S [N]^T\{p\}\, dS = \{0\}\]</span></p>
+<p>In practice the integral <span class="math inline">\(\int [B]^T[D][B]\, dV\)</span> is evaluated by numerical
+quadrature (Gauss integration). That topic appears in the
+<a href="15_practical_considerations.html">Practical Considerations</a>
+lecture.</p>
+<hr/>
+<h2 id="lec5-final-finite-element-equations">11. Final Finite Element
+Equations</h2>
+<p>Collecting terms, the element nodal load vector is</p>
+<p><span class="math display">\[\{f^e\} = \int_V [N]^T\{q\}\, dV +
+\int_S [N]^T\{p\}\, dS\]</span></p>
+<p>and the governing finite element equation for the element is</p>
+<p><span class="math display">\[[K]\{u^e\} = \{f^e\} \qquad
+\Longrightarrow \qquad \{u^e\} = [K]^{-1}\{f^e\}\]</span></p>
+<p class="aside"><strong>A note on solving this in practice:</strong> <span class="math inline">\([K]^{-1}\)</span> above is conceptual notation for
+"solve the linear system," not a recommended computational procedure.
+After assembling the element matrices into a global <span class="math inline">\([K]\)</span> and applying the essential (displacement)
+boundary conditions, real FE codes solve the resulting linear system
+with a numerical solver (e.g. sparse Gaussian elimination or an
+iterative method) — they do not form <span class="math inline">\([K]^{-1}\)</span> explicitly, which is far more
+expensive and numerically worse-conditioned than solving directly.</p>
+<p><strong>Summary — all quantities needed to solve a 3D elasticity
+problem by the finite element method:</strong></p>
+<table>
+<colgroup>
+<col class="col-half"/>
+<col class="col-half"/>
+</colgroup>
+<thead>
+<tr class="header">
+<th>Quantity</th>
+<th>Formula</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Displacement approximation</td>
+<td><span class="math inline">\(\{u\} = [N]\{u^e\}\)</span></td>
+</tr>
+<tr class="even">
+<td>Strain approximation</td>
+<td><span class="math inline">\(\{\varepsilon\} =
+[B]\{u^e\}\)</span></td>
+</tr>
+<tr class="odd">
+<td>Stress approximation</td>
+<td><span class="math inline">\(\{\sigma\} = [D][B]\{u^e\}\)</span></td>
+</tr>
+<tr class="even">
+<td>Element stiffness matrix</td>
+<td><span class="math inline">\([K] = \displaystyle\int_{V^e}
+[B]^T[D][B]\, dV\)</span></td>
+</tr>
+<tr class="odd">
+<td>Element nodal load vector</td>
+<td><span class="math inline">\(\{f^e\} = \displaystyle\int_{V^e}
+[N]^T\{q\}\, dV + \int_{S^e} [N]^T\{p\}\, dS\)</span></td>
+</tr>
+</tbody>
+</table>
+<p>This is the exact 3D analogue of <span class="math inline">\([K]\{u\}=\{F\}\)</span> from the 1D bar element
+you started the course with — same governing equation, richer <span class="math inline">\([N]\)</span>, <span class="math inline">\([B]\)</span>, and <span class="math inline">\([D]\)</span>.</p>
+<p>The equation just derived, <span class="math inline">\([K]\{u^e\}=\{f^e\}\)</span>, is only the <em>element</em>
+level — every element in a mesh produces one. Getting to an answer means
+assembling those element matrices into a global system, then applying
+boundary conditions before solving:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Level</th>
+<th>Equation</th>
+<th>Typical size (8-node brick)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd"><td>Element</td><td><span class="math inline">\([K^e]\{u^e\}=\{f^e\}\)</span></td><td><span class="math inline">\(24\times24\)</span></td></tr>
+<tr class="even"><td>Global (assembled)</td><td><span class="math inline">\([K]\{u\}=\{F\}\)</span></td><td>number of free global DOFs</td></tr>
+<tr class="odd"><td>After BCs applied</td><td><span class="math inline">\([K_{ff}]\{u_f\}=\{F_f\}-[K_{fc}]\{u_c\}\)</span></td><td>free DOFs only</td></tr>
+</tbody>
+</table>
+<p class="aside">Assembly sums each element's contribution into the shared global DOFs at
+its nodes; applying essential (displacement) boundary conditions
+partitions the system into free (<span class="math inline">\(f\)</span>) and constrained (<span class="math inline">\(c\)</span>) degrees of freedom before the numerical solve
+described above. This assembly-and-solve process is covered in detail
+in later lectures — the point here is just to place the element
+derivation you just built inside the larger pipeline it feeds.</p>
+<hr/>
+<h2 id="lec5-summary-of-key-equations">Summary of Key Equations</h2>
+<p><span class="math display">\[\{\varepsilon\} = [B(\vec x)]\{u^e\}
+\qquad \{\sigma\} = [D][B(\vec x)]\{u^e\}\]</span></p>
+<p><span class="math display">\[[K] = \int_{V^e} [B]^T[D][B]\, dV \qquad
+\{f^e\} = \int_{V^e}[N]^T\{q\}\, dV + \int_{S^e}[N]^T\{p\}\,
+dS\]</span></p>
+<p><span class="math display">\[[K]\{u^e\} = \{f^e\}\]</span></p>
+
+<details class="check-prompt">
+<summary>Check your understanding: put the pipeline in order</summary>
+<div class="answer">
+<p>Starting from the nodal displacements <span class="math inline">\(\{u^e\}\)</span> and ending at the element
+stiffness matrix <span class="math inline">\([K^e]\)</span>, put these
+in the order the finite element method actually computes them: <span class="math inline">\([D]\)</span>, <span class="math inline">\(\{\varepsilon\}\)</span>, <span class="math inline">\([B]\)</span>, <span class="math inline">\(\{\sigma\}\)</span>, <span class="math inline">\([N]\)</span>, <span class="math inline">\(\{u\}\)</span>, <span class="math inline">\([B^TDB]\)</span>.</p>
+<p><em>Answer:</em></p>
+<p><span class="math display">\[\{u^e\}
+\rightarrow [N]
+\rightarrow \{u\}
+\rightarrow [B]
+\rightarrow \{\varepsilon\}
+\rightarrow [D]
+\rightarrow \{\sigma\}
+\rightarrow \int[B]^T[D][B]\, dV
+\rightarrow [K^e]\]</span></p>
+<p>Notice <span class="math inline">\([D]\)</span> slots in independently of the <span class="math inline">\([N]\)</span>&rarr;<span class="math inline">\([B]\)</span> chain — it comes from the material
+(Constitutive Relations), not from the element geometry or shape
+functions, which is exactly why the same isotropic <span class="math inline">\([D]\)</span> can be dropped into elements of any
+shape without re-derivation.</p>
+</div>
+</details>
+<details class="check-prompt">
+<summary>Check your understanding: pipeline with the load vector (harder)</summary>
+<div class="answer">
+<p>Now include the load side. Arrange these in a valid computing order and say which steps are independent of each other: <span class="math inline">\([D]\)</span>, <span class="math inline">\([B]\)</span>, <span class="math inline">\([N]\)</span>, <span class="math inline">\(\int[N]^T\{q\}\,dV\)</span>, <span class="math inline">\(\int[N]^T\{p\}\,dS\)</span>, <span class="math inline">\(\int[B]^T[D][B]\,dV\)</span>, <span class="math inline">\(\{f^e\}\)</span>, and <span class="math inline">\([K]\{u^e\}=\{f^e\}\)</span>.</p>
+<p><em>Answer:</em> <span class="math inline">\([N]\)</span> comes first, since both branches need it. The stiffness branch and the load branch are then independent and can be done in either order:</p>
+<p><span class="math display">\[\begin{aligned}
+&\text{stiffness:}\quad [N] \rightarrow [B] \rightarrow \int[B]^T[D][B]\,dV = [K] \\
+&\text{load:}\quad [N] \rightarrow \int[N]^T\{q\}\,dV + \int[N]^T\{p\}\,dS = \{f^e\}
+\end{aligned}\]</span></p>
+<p>The two branches meet only in the last step, <span class="math inline">\([K]\{u^e\}=\{f^e\}\)</span>, which is an equation to be solved for <span class="math inline">\(\{u^e\}\)</span> (after assembly and boundary conditions), not a quantity computed forward. <span class="math inline">\([D]\)</span> enters only the stiffness integral; the load vector never touches <span class="math inline">\([D]\)</span> or <span class="math inline">\([B]\)</span>.</p>
+</div>
+</details>
+
+</section>
+<hr class="lecture-sep" />
+<nav class="page-pager"><a href="10_constitutive_relations.html">&larr; Constitutive Relations</a><a href="12_2d_elements_cst_bilinear.html">2-D Elements &mdash; CST &amp; Bilinear &rarr;</a></nav>
+<footer class="doc-end">
+      <p>CEE 2333 — Fundamentals of the Finite Element Method · Combined Course Notes</p>
+      <p>This page was developed with the assistance of various generative AI tools.</p>
+      <p><a href="#top">Back to top ↑</a></p>
+    </footer>
+  </main>
+</div>
+<script>
+(function () {
+  var toggle = document.getElementById('navToggle');
+  var sidebar = document.getElementById('sidebar');
+  var mobileQuery = window.matchMedia('(max-width: 760px)');
+
+  function syncSidebarA11y() {
+    if (!mobileQuery.matches) {
+      sidebar.removeAttribute('aria-hidden');
+      if ('inert' in sidebar) sidebar.inert = false;
+      return;
+    }
+    var open = sidebar.classList.contains('open');
+    sidebar.setAttribute('aria-hidden', open ? 'false' : 'true');
+    if ('inert' in sidebar) sidebar.inert = !open;
+  }
+
+  syncSidebarA11y();
+  if (mobileQuery.addEventListener) {
+    mobileQuery.addEventListener('change', syncSidebarA11y);
+  } else if (mobileQuery.addListener) {
+    mobileQuery.addListener(syncSidebarA11y);
+  }
+  window.addEventListener('resize', syncSidebarA11y);
+
+  toggle.addEventListener('click', function () {
+    sidebar.classList.toggle('open');
+    syncSidebarA11y();
+    toggle.setAttribute('aria-expanded', sidebar.classList.contains('open') ? 'true' : 'false');
+  });
+  var links = Array.prototype.slice.call(document.querySelectorAll('.toc-link'));
+  links.forEach(function (l) {
+    l.addEventListener('click', function () {
+      sidebar.classList.remove('open');
+      toggle.setAttribute('aria-expanded', 'false');
+      syncSidebarA11y();
+    });
+  });
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape' && sidebar.classList.contains('open')) {
+      sidebar.classList.remove('open');
+      toggle.setAttribute('aria-expanded', 'false');
+      syncSidebarA11y();
+      toggle.focus();
+    }
+  });
+})();
+</script>
+</body>
+</html>
+
+
+
+
