@@ -1,0 +1,1784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- CHANGELOG (Lecture 12 revision pass)
+ A1 mesh widget: status text now branches on the computed U1/U2; one-time self-check logs (console.info / console.warn) the energies of the u, v, mixed and stretch patterns.
+ A2 Run loader: initTimer (8 s -> 40 s after the worker reports 'loaded') and runTimer (30 s, armed when the run message is posted); generation counter ignores stale workers; no state kept on DOM nodes.
+ A3 .pc-controls wrapper (Run/Copy/status/legend/output) hidden by <noscript>; the read-only code stays visible.
+ B1 lecture numbering kept (matches the sidebar toc-num 6, 7, 9); cross-references now also name the lecture. B2/B3 wording fixes.
+ C1 widget buttons/sliders updated in place (no rebuild, no focus loss); C2 radiogroup/radio + aria-checked + arrow keys; C3 Python heading and output legend; C4 dead .iso-handle focus rules removed.
+ D1 bending figure; D2 null-space sentence; D3 labelled nodal-displacement order.
+ E1 helpers moved into the LEC12 namespace; E2 worker object URL revoked; E3 comment on the carried-over Lecture 9/10 widget CSS.
+ Consistency pass (no change to sidebar, links, widget calculations, MathJax config or Python logic):
+ S1 status classes: checked - the shared stylesheet already defines .iso-status.warn (amber, warning icon) next to ok/bad, so no CSS change was needed.
+ S2 Python snippet: first line is a comment giving the nodal ordering [u1, v1, ..., u4, v4].
+ S3 bare 'Lecture 9' references now read 'Lecture 9 (The Isoparametric Element)'; 'Lectures 9-11' names its three lectures.
+ S4 quadratic extrapolation preset: status line states that all four Gauss points read 8/3.
+ S5 editorial: slide-to-HTML remarks removed (the [E]/[D] naming notes, the [N] transpose note, the eps_xy note, the dropped-constant note).
+-->
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CEE 2333 — Lecture 12: Strains, Stresses and Instabilities of the Bilinear Element</title>
+<script>
+window.MathJax = {
+  tex: {
+    inlineMath: [['\\(', '\\)'], ['$', '$']],
+    displayMath: [['$$', '$$'], ['\\[', '\\]']]
+  }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js"></script>
+<style>
+/* ============================================================
+   CEE 2333 — Combined Course Notes
+   Unified design system applied across all merged lectures
+   ============================================================ */
+
+:root {
+  --ink: #1e2430;
+  --sub: #4a5264;
+  --accent: #7a4a63;
+  --accent2: #3b7dd8;
+  --bg: #fbfaf8;
+  --card: #ffffff;
+  --line: #e4e0da;
+  --note-bg: #f4f0f8;
+  --note-border: #7a4a63;
+  --sidebar-bg: #23222a;
+  --sidebar-ink: #eae7e2;
+  --sidebar-sub: #9d97a8;
+  --sidebar-line: rgba(255, 255, 255, 0.1);
+  --sidebar-active: #c98fa8;
+  --sidebar-width: 300px;
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  line-height: 1.65;
+}
+
+#top { position: absolute; top: 0; }
+
+/* ---------- layout shell ---------- */
+
+.shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  width: var(--sidebar-width);
+  flex: 0 0 var(--sidebar-width);
+  height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.28) var(--sidebar-bg);
+  background: var(--sidebar-bg);
+  color: var(--sidebar-ink);
+  padding: 34px 22px 40px;
+  font-family: "Helvetica Neue", Arial, sans-serif;
+}
+
+.sidebar::-webkit-scrollbar { width: 9px; }
+.sidebar::-webkit-scrollbar-track { background: var(--sidebar-bg); }
+.sidebar::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.28);
+  border-radius: 5px;
+  border: 2px solid var(--sidebar-bg);
+}
+.sidebar::-webkit-scrollbar-thumb:hover { background-color: rgba(255, 255, 255, 0.45); }
+
+.sidebar-head { margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid var(--sidebar-line); }
+
+.course-code {
+  margin: 0 0 6px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  color: var(--sidebar-active);
+  font-weight: 700;
+}
+
+.course-title {
+  margin: 0 0 10px;
+  font-size: 1.15rem;
+  line-height: 1.35;
+  font-weight: 700;
+  color: var(--sidebar-ink);
+}
+
+.course-author {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--sidebar-sub);
+}
+
+.toc-list { list-style: none; margin: 0; padding: 0; }
+
+.toc-list li { margin-bottom: 2px; }
+
+.toc-link {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  padding: 9px 10px;
+  border-radius: 6px;
+  text-decoration: none;
+  color: var(--sidebar-sub);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.toc-link:hover { background: rgba(255, 255, 255, 0.06); color: var(--sidebar-ink); }
+
+.toc-link.active {
+  background: rgba(201, 143, 168, 0.16);
+  color: var(--sidebar-ink);
+}
+
+.toc-link.active .toc-num { color: var(--sidebar-active); }
+
+.toc-num {
+  font-family: "SF Mono", Consolas, monospace;
+  font-size: 0.72rem;
+  color: var(--sidebar-sub);
+  flex: 0 0 auto;
+  padding-top: 2px;
+}
+
+.toc-text { display: flex; flex-direction: column; gap: 2px; }
+
+.toc-title { font-size: 0.88rem; line-height: 1.3; }
+
+.toc-sub { font-size: 0.72rem; color: var(--sidebar-sub); line-height: 1.3; }
+
+.toc-group { margin: 16px 0 4px; padding: 0 10px; }
+
+.toc-group-label {
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.68rem;
+  color: var(--sidebar-sub);
+  font-weight: 700;
+}
+
+.toc-link.disabled { cursor: default; opacity: 0.5; }
+
+.toc-link.disabled:hover { background: none; color: var(--sidebar-sub); }
+
+.toc-soon {
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--sidebar-sub);
+  border: 1px solid var(--sidebar-line);
+  border-radius: 9px;
+  padding: 1px 6px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.sidebar-foot {
+  margin-top: 26px;
+  padding-top: 16px;
+  border-top: 1px solid var(--sidebar-line);
+  font-size: 0.72rem;
+  color: var(--sidebar-sub);
+  letter-spacing: 0.03em;
+}
+
+.nav-toggle { display: none; }
+
+.content {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 56px 56px 120px;
+  max-width: 900px;
+}
+
+.lecture { max-width: 780px; }
+
+.lecture-marker {
+  margin: 0 0 6px;
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+hr.lecture-sep {
+  border: none;
+  border-top: 2px dashed var(--line);
+  margin: 4.5em 0;
+  max-width: 780px;
+}
+
+.doc-end {
+  margin-top: 4em;
+  padding-top: 1.4em;
+  border-top: 1px solid var(--line);
+  color: var(--sub);
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  font-size: 0.85rem;
+  text-align: center;
+  max-width: 780px;
+}
+
+.doc-end a { color: var(--accent2); }
+
+/* ---------- typography ---------- */
+
+h1 {
+  font-size: 1.9rem;
+  margin: 0.2em 0 0.3em;
+  border-bottom: 3px solid var(--accent);
+  padding-bottom: 0.4em;
+  color: var(--ink);
+}
+
+h2 {
+  font-size: 1.4rem;
+  color: var(--accent);
+  margin-top: 2.4em;
+  border-top: 1px solid var(--line);
+  padding-top: 1em;
+}
+
+h3 {
+  font-size: 1.1rem;
+  color: var(--sub);
+  margin-top: 1.7em;
+}
+
+h4 { font-size: 1rem; color: var(--sub); margin-top: 1.4em; }
+
+p, li { color: var(--ink); }
+
+strong { color: var(--ink); }
+
+em { color: inherit; }
+
+a { color: var(--accent2); }
+
+::selection { background: #dcd3e6; }
+
+/* subtitle / author style lines that appear under a title */
+.subtitle, .doc-sub, p.subtitle {
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  color: var(--sub);
+  margin-top: -0.4em;
+  font-size: 1.05rem;
+}
+
+p.author, div.prof, div.author {
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  color: var(--sub);
+  font-size: 0.95rem;
+  margin: 0.2em 0 1em;
+}
+
+/* small "kicker"/eyebrow labels used above titles in a few lectures */
+.eyebrow, .utility, .sheet-kicker, .sheet-tag, .fem-label, .example-label,
+.panel-label, .toc-title.eyebrow {
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.72rem;
+  color: var(--accent);
+  font-weight: 700;
+  margin: 0 0 0.4em;
+  display: block;
+}
+
+.mesh-caption {
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  font-size: 0.86rem;
+  color: var(--sub);
+  font-style: italic;
+  text-align: center;
+  margin: 0.6em 0 1.4em;
+}
+
+/* small metadata rows (e.g. Source / Scope / Applied-to) laid out as spans */
+.divider, .revline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 22px;
+  border-top: 1px dashed var(--line);
+  margin: 1em 0;
+  padding-top: 0.7em;
+  font-size: 0.85rem;
+  color: var(--sub);
+}
+
+.divider span, .revline span { color: var(--sub); }
+.divider b, .revline b { color: var(--ink); }
+
+/* plain layout wrappers carried over from source documents: neutral */
+.page, .wrap, .sheet-stack, .hero, .hero-inner, .hero-text,
+.title-block, .titleblock, .masthead {
+  display: block;
+  max-width: 100%;
+}
+
+/* intro lecture's masthead labels, mapped onto the shared label styles */
+.kicker { font-family: "Helvetica Neue", Arial, sans-serif; text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.72rem; color: var(--accent); font-weight: 700; margin: 0 0 0.4em; display: block; }
+p.byline { font-family: "Helvetica Neue", Arial, sans-serif; color: var(--sub); font-size: 0.95rem; margin: 0.2em 0 1em; }
+footer.page-footer, footer.doc-footer { margin-top: 3em; padding-top: 1.2em; border-top: 1px solid var(--line); color: var(--sub); font-family: "Helvetica Neue", Arial, sans-serif; font-size: 0.82rem; text-align: center; }
+
+/* Lecture 2a masthead subtitle line */
+.sub { font-family: "Helvetica Neue", Arial, sans-serif; color: var(--sub); font-size: 1rem; margin-top: 0.3em; line-height: 1.5; }
+
+/* FIX #8: removed dead svg.diagram rules (they belonged to Lecture 3, not this file). */
+
+.sheet, .wrap-sheet {
+  display: block;
+  margin: 2em 0;
+}
+
+/* blockquote used for editorial / revision notes */
+blockquote {
+  background: var(--note-bg);
+  border-left: 4px solid var(--note-border);
+  margin: 1.2em 0;
+  padding: 0.7em 1.1em;
+  border-radius: 0 4px 4px 0;
+  font-size: 0.95rem;
+  color: #4a3450;
+}
+
+blockquote p { margin: 0.3em 0; }
+
+/* ---------- check-your-understanding prompts ---------- */
+
+details.check-prompt {
+  margin: 1.4em 0;
+  max-width: 780px;
+}
+
+details.check-prompt > summary {
+  cursor: pointer;
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #3b8f6b;
+  padding: 9px 14px;
+  background: #f0f8f4;
+  border: 1px solid #3b8f6b;
+  border-radius: 4px;
+}
+
+details.check-prompt[open] > summary { border-radius: 4px 4px 0 0; margin-bottom: 0; }
+
+details.check-prompt > summary::-webkit-details-marker { color: #3b8f6b; }
+
+details.check-prompt > div.answer {
+  padding: 0.8em 1.1em;
+  background: var(--card);
+  border: 1px solid #3b8f6b;
+  border-top: none;
+  border-radius: 0 0 4px 4px;
+  font-size: 0.92rem;
+}
+
+/* unified "callout / note box" treatment for the many custom box
+   classes used across the original lectures (panels, definitions,
+   examples, principles, algorithms, correction notes, etc.) */
+div.callout, div.definition, div.example, div.principle, div.panel,
+div.algorithm, div.fem-callout, div.legend, div.eq-block {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent2);
+  border-radius: 6px;
+  padding: 1em 1.2em;
+  margin: 1.4em 0;
+  font-size: 0.96rem;
+}
+
+div.definition { border-left-color: var(--accent); }
+div.example { border-left-color: #3b8f6b; }
+div.principle { border-left-color: #b8862f; }
+
+/* tables */
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1.4em 0;
+  font-size: 0.92rem;
+  overflow-x: auto;
+  display: table;
+}
+
+div.table-scroll { overflow-x: auto; margin: 1.4em 0; }
+div.table-scroll table { margin: 0; }
+
+th, td {
+  border: 1px solid var(--line);
+  padding: 8px 12px;
+  text-align: left;
+}
+
+th, tr.header th, tr.header td {
+  background: #f1ede6;
+  color: var(--accent);
+}
+
+tr:nth-child(even) td, tr.even td {
+  background: #fbfaf7;
+}
+
+table.kmatrix td, table.map-table td { text-align: center; }
+
+/* figures / images / diagrams */
+figure {
+  margin: 1.8em 0;
+  text-align: center;
+}
+
+figure img, figure svg { margin: 0 auto; }
+
+figcaption {
+  font-size: 0.86rem;
+  color: var(--sub);
+  margin-top: 0.6em;
+  font-style: italic;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+  margin: 1.6em auto;
+  border-radius: 4px;
+}
+
+svg { max-width: 100%; height: auto; }
+
+.chart-wrap, .mesh-wrap { margin: 1.8em auto; text-align: center; max-width: 100%; }
+
+/* code */
+code {
+  background: #f1ede6;
+  padding: 0.15em 0.4em;
+  border-radius: 3px;
+  font-size: 0.9em;
+  font-family: "SF Mono", Consolas, monospace;
+}
+
+pre {
+  background: #f4f4f0;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 1rem;
+  overflow-x: auto;
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
+pre code { background: none; padding: 0; }
+
+hr {
+  border: none;
+  border-top: 1px solid var(--line);
+  margin: 2.4em 0;
+}
+
+span.num, span.swatch {
+  display: inline-block;
+  font-family: "SF Mono", Consolas, monospace;
+  font-size: 0.85em;
+  background: #f1ede6;
+  border-radius: 3px;
+  padding: 0 0.35em;
+}
+
+/* ---------- responsive ---------- */
+
+@media (max-width: 900px) {
+  .content { padding: 40px 24px 100px; max-width: 100%; }
+  .lecture, .doc-end, hr.lecture-sep { max-width: 100%; }
+}
+
+@media (max-width: 760px) {
+  .nav-toggle {
+    display: block;
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 40;
+    background: var(--sidebar-bg);
+    color: var(--sidebar-ink);
+    border: none;
+    border-radius: 20px;
+    padding: 10px 16px;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 0.85rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  }
+
+  .shell { display: block; }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    z-index: 30;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.3);
+  }
+
+  .sidebar.open { transform: translateX(0); }
+
+  .content { padding: 84px 20px 100px; }
+}
+
+@media print {
+  .sidebar, .nav-toggle { display: none; }
+  .shell { display: block; }
+  .content { padding: 0; max-width: 100%; }
+}
+
+
+/* Lecture 9/10 widget styles below: kept for the combined course-notes build; unused in this standalone file
+   (the shared .iso-widget / .iso-status / .iso-table / .shape-sliders rules are still used by this lecture). */
+/* ---------- Lecture 10: interactive isoparametric mapping widget ---------- */
+.iso-widget { border: 1px solid var(--line); border-left: 4px solid var(--accent2); border-radius: 6px; background: var(--card); padding: 1em 1.2em; margin: 1.6em 0; font-family: "Helvetica Neue", Arial, sans-serif; }
+.iso-presets { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 0.8em; }
+.iso-presets button { font: inherit; font-size: 0.8rem; padding: 6px 12px; border: 1px solid var(--accent2); background: #eef4fc; color: #25508f; border-radius: 16px; cursor: pointer; }
+.iso-presets button:hover { background: #dce9f9; }
+.iso-panels { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; justify-content: center; }
+.iso-fig { margin: 0; flex: 1 1 240px; min-width: 0; }
+.iso-fig:last-child { flex: 1.35 1 320px; }
+.iso-fig svg { width: 100%; background: #fdfcfa; border: 1px solid var(--line); border-radius: 4px; touch-action: none; }
+.iso-fig figcaption { font-size: 0.8rem; }
+.iso-status { margin: 0.8em 0 0.4em; padding: 8px 12px; border-radius: 4px; font-size: 0.88rem; font-weight: 600; }
+.iso-status.ok { background: #f0f8f4; color: #2b7a57; border: 1px solid #3b8f6b; }
+.iso-status.bad { background: #fdf0ef; color: #a1322b; border: 1px solid #c9473f; }
+.iso-table { font-size: 0.82rem; margin: 0.6em 0; }
+.iso-table td, .iso-table th { padding: 5px 9px; font-family: "SF Mono", Consolas, monospace; }
+.iso-table th { font-family: "Helvetica Neue", Arial, sans-serif; }
+.iso-table td.neg { color: #a1322b; font-weight: 700; }
+.iso-area { font-size: 0.85rem; color: var(--sub); margin: 0.4em 0 0; }
+.iso-widget svg text { font-family: "Helvetica Neue", Arial, sans-serif; }
+
+
+/* ---------- Lecture 10: shape-function explorer ---------- */
+.iso-presets button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.shape-sliders { display: flex; flex-wrap: wrap; gap: 8px 28px; margin: 0.9em 0 0.2em; font-size: 0.85rem; color: var(--sub); }
+.shape-sliders label { display: flex; align-items: center; gap: 8px; }
+.shape-sliders output { display: inline-block; min-width: 3.2em; font-family: "SF Mono", Consolas, monospace; color: var(--ink); }
+.shape-sliders input[type=range] { width: 200px; max-width: 40vw; accent-color: var(--accent); }
+#shapeWidget .iso-table tr.sel td { background: #f4eaf0; font-weight: 700; }
+#shapeWidget .iso-table td.sd { font-size: 0.8rem; line-height: 1.7; vertical-align: middle; }
+
+
+/* ---------- Lecture 10: "one set of weights, two jobs" widget ---------- */
+.iso-widget.tri .iso-fig, .iso-widget.tri .iso-fig:last-child { flex: 1 1 230px; }
+.tri-table td.nd { font-family: "Helvetica Neue", Arial, sans-serif; font-weight: 700; }
+.tri-table td .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: baseline; }
+.tri-table tr.sumrow td { background: #f1ede6; font-weight: 700; border-top: 2px solid var(--accent); }
+
+
+/* ---------- Lecture 10: Jacobian magnifier ---------- */
+.iso-widget.jac .iso-fig, .iso-widget.jac .iso-fig:last-child { flex: 1 1 230px; }
+.iso-widget.jac .iso-fig.jbox { flex: 0 1 210px; font-size: 0.82rem; padding-top: 4px; }
+.jbox .jlabel { font-weight: 700; color: var(--ink); margin: 8px 0 4px; }
+.jbox .jdet { margin: 8px 0; font-family: "SF Mono", Consolas, monospace; font-size: 0.82rem; }
+.jbox .jdet.bad { color: #a1322b; font-weight: 700; }
+table.jmat { border-collapse: separate; border-spacing: 0; border-left: 2px solid #444; border-right: 2px solid #444; border-radius: 4px; margin: 0; }
+table.jmat td { padding: 4px 10px; font-family: "SF Mono", Consolas, monospace; font-size: 0.82rem; text-align: right; border: none; }
+table.jmat td.r1 { color: #7a4a63; background: #f6eef2; font-weight: 700; }
+table.jmat td.r2 { color: #25508f; background: #eaf1fb; font-weight: 700; }
+table.jmat td.g { color: #333; background: #f4f2ee; }
+
+
+/* ---------- Lecture 10: strain assembly line ---------- */
+.iso-widget.belt .iso-fig, .iso-widget.belt .iso-fig:last-child { flex: 1 1 230px; max-width: 340px; }
+.belt-sliders { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px 18px; margin: 0.8em 0 0.4em; font-size: 0.78rem; color: var(--sub); }
+.belt-sliders label { display: flex; align-items: center; gap: 6px; }
+.belt-sliders .nm { font-weight: 700; min-width: 1.6em; }
+.belt-sliders output { font-family: "SF Mono", Consolas, monospace; min-width: 3.1em; color: var(--ink); }
+.belt-sliders input[type=range] { width: 70px; flex: 1 1 60px; accent-color: var(--accent); }
+.belt-flow { margin: 0.6em 0; }
+.belt-stage { border: 1px solid var(--line); border-radius: 6px; background: #fff; padding: 8px 12px 10px; }
+.belt-stage .st-title { font-size: 0.82rem; font-weight: 700; color: var(--ink); margin-bottom: 6px; }
+.belt-stage .st-title .step { display: inline-block; background: var(--accent); color: #fff; border-radius: 10px; padding: 1px 9px; margin-right: 8px; font-size: 0.74rem; }
+.belt-stage .eq { display: flex; align-items: center; gap: 10px; overflow-x: auto; padding: 4px 2px 6px; }
+.belt-stage .blk { flex: 0 0 auto; text-align: center; }
+.belt-stage .cap { font-size: 0.72rem; color: var(--sub); margin-top: 3px; }
+.belt-stage .op { font-size: 1.2rem; color: var(--sub); flex: 0 0 auto; }
+.belt-arrow { text-align: center; color: var(--sub); font-size: 0.78rem; line-height: 1.1; padding: 3px 0; }
+table.bmat { border-collapse: separate; border-spacing: 1px; border-left: 2px solid #444; border-right: 2px solid #444; border-radius: 4px; margin: 0 auto; }
+table.bmat th, table.bmat td { font-family: "SF Mono", Consolas, monospace; font-size: 0.7rem; padding: 2px 5px; text-align: right; border: none; background: #fff; min-width: 2.6em; }
+table.bmat th { font-weight: 700; text-align: center; background: #f4f2ee; }
+table.bmat th.vl { text-align: right; background: transparent; padding-right: 8px; }
+table.bmat td.z { color: #c3beb5; }
+table.bmat td.hl { background: #fbe39a; outline: 1.5px solid #b8862f; color: #222; font-weight: 700; }
+table.bmat td.hl.z { color: #8a6420; }
+table.bmat td.out { cursor: pointer; background: #f1f6ee; font-weight: 700; }
+table.bmat td.out:hover { background: #dcecd3; }
+table.bmat td.out.hl { background: #f2cf62; }
+
+
+/* ---------- Lecture 10: worked-example stepper ---------- */
+.st-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 0.7em; }
+.st-tabs button { font: inherit; font-size: 0.82rem; padding: 7px 14px; border: 1px solid var(--line); background: #f4f2ee; color: var(--sub); border-radius: 6px 6px 0 0; cursor: pointer; }
+.st-tabs button.on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+.st-nav { display: flex; align-items: center; justify-content: space-between; margin-top: 0.9em; font-size: 0.82rem; color: var(--sub); }
+.st-nav button { font: inherit; font-size: 0.82rem; padding: 6px 14px; border: 1px solid var(--accent2); background: #eef4fc; color: #25508f; border-radius: 16px; cursor: pointer; }
+.st-nav button:disabled { opacity: 0.4; cursor: default; }
+.st-frame-title { font-weight: 700; color: var(--ink); margin: 0.2em 0 0.4em; font-size: 0.95rem; }
+.st-note { font-size: 0.84rem; color: var(--sub); margin: 0.6em 0 0; line-height: 1.5; }
+.st-box { flex: 1 1 220px; font-size: 0.82rem; min-width: 0; }
+.st-box .lab { font-weight: 700; margin: 8px 0 3px; color: var(--ink); }
+.st-box .eqline { font-family: "SF Mono", Consolas, monospace; font-size: 0.78rem; line-height: 1.7; }
+.st-pill { display: inline-block; padding: 1px 9px; border-radius: 10px; font-size: 0.74rem; font-weight: 700; margin-left: 6px; }
+.st-pill.ok { background: #e3f3ea; color: #2b7a57; }
+.st-pill.no { background: #fbe4e1; color: #a1322b; }
+.st-gp { display: flex; flex-wrap: wrap; gap: 8px; margin: 0.4em 0 0.6em; }
+.st-gp button { font: inherit; font-size: 0.8rem; padding: 5px 12px; border: 1px solid var(--line); background: #fff; color: var(--sub); border-radius: 14px; cursor: pointer; }
+.st-gp button.on { background: #f4eaf0; border-color: var(--accent); color: var(--accent); font-weight: 700; }
+.st-maps { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; }
+.st-small { text-align: center; font-size: 0.74rem; color: var(--sub); }
+.st-small svg { display: block; margin: 0 auto 2px; }
+.st-chk { list-style: none; margin: 0.4em 0 0; padding: 0; font-size: 0.8rem; }
+.st-chk li { margin: 3px 0; }
+.st-hover { font-family: "SF Mono", Consolas, monospace; font-size: 0.76rem; min-height: 1.4em; color: var(--ink); margin: 4px 0; }
+
+
+/* ---------- FIX #2 / #4: keyboard focus, handles, radio groups, screen-reader helpers ---------- */
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.iso-kbd { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 0.78rem; color: var(--sub); margin: 0 0 0.6em; }
+.iso-handle { cursor: grab; touch-action: none; }
+.iso-handle:active { cursor: grabbing; }
+.iso-btn { cursor: pointer; }
+.iso-presets button[aria-checked="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.st-gp button[aria-checked="true"] { background: #f4eaf0; border-color: var(--accent); color: var(--accent); font-weight: 700; }
+.st-gp button[aria-pressed="true"] { background: #f4eaf0; border-color: var(--accent); color: var(--accent); font-weight: 700; }
+.st-tabs button[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+#stOpts button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+#stBig:focus-visible { outline: 3px solid var(--accent2); outline-offset: 3px; }
+td.out:focus-visible { outline: 3px solid var(--accent2); outline-offset: 1px; }
+/* FIX #4: visible keyboard focus for all interactive controls (focus-visible, so no ring on mouse click) */
+.iso-widget button:focus-visible,
+.iso-presets button:focus-visible,
+.st-tabs button:focus-visible,
+.st-nav button:focus-visible,
+.st-gp button:focus-visible,
+.belt-sliders input:focus-visible,
+.shape-sliders input:focus-visible,
+.toc-link:focus-visible,
+#navToggle:focus-visible {
+  outline: 2px solid var(--accent2);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+/* keep the third panel from stretching to full width when the row wraps */
+.iso-widget.tri .iso-fig, .iso-widget.jac .iso-fig:not(.jbox) { max-width: 380px; }
+
+
+/* ===================== Round 2: touch, stacking, status icons, new widgets features ===================== */
+/* P2: invisible hit circles are only active for coarse pointers (they would overlap neighbouring handles with a mouse) */
+.iso-hit { fill: transparent; stroke: none; pointer-events: none; }
+@media (any-pointer: coarse) { .iso-hit { pointer-events: all; } }
+/* P2: the svg itself never blocks page scrolling; only grabbed handles do (the script also cancels touchstart on them) */
+.iso-widget .iso-fig svg { touch-action: pan-y pinch-zoom; }
+.iso-grab, .iso-handle { touch-action: none; }
+.iso-btn:focus-visible { outline: 3px solid var(--accent2); outline-offset: 2px; }
+/* P2: nudge pad for small screens */
+.iso-nudge { display: none; align-items: center; flex-wrap: wrap; gap: 8px 14px; margin: 0.7em 0; padding: 8px 10px; border: 1px dashed var(--line); border-radius: 6px; font-family: "Helvetica Neue", Arial, sans-serif; font-size: 0.82rem; color: var(--sub); }
+.iso-nudge[hidden] { display: none !important; }
+.iso-nudge select { font: inherit; padding: 6px 8px; margin-left: 6px; max-width: 14em; }
+.iso-nudge .pad { display: inline-flex; gap: 6px; }
+.iso-nudge button { font: inherit; min-width: 44px; min-height: 44px; border: 1px solid var(--accent2); background: #eef4fc; color: #25508f; border-radius: 8px; cursor: pointer; }
+.iso-nudge button:active { background: #dce9f9; }
+.iso-nudge button:focus-visible, .iso-nudge select:focus-visible, .iso-nudge input:focus-visible { outline: 2px solid var(--accent2); outline-offset: 2px; }
+@media (any-pointer: coarse), (max-width: 760px) { .iso-nudge { display: flex; } }
+@media (any-pointer: coarse) {
+  .iso-presets button, .st-tabs button, .st-nav button, .st-gp button, #stOpts button, .iso-widget select { min-height: 44px; }
+  .iso-presets button, .st-gp button { min-width: 44px; padding-left: 14px; padding-right: 14px; }
+  .belt-sliders input[type=range], .shape-sliders input[type=range] { min-height: 44px; }
+  td.out { padding: 10px 12px !important; }
+}
+/* P2: multi-panel widgets stack cleanly on narrow screens */
+@media (max-width: 760px) {
+  .iso-widget .iso-panels { flex-direction: column; align-items: stretch; }
+  .iso-widget .iso-fig, .iso-widget.tri .iso-fig, .iso-widget.jac .iso-fig, .iso-widget.belt .iso-fig, .iso-widget .iso-fig:last-child { flex: 0 0 auto !important; width: 100%; max-width: 520px !important; margin-left: auto; margin-right: auto; }
+  .iso-widget.jac .iso-fig.jbox { max-width: 520px !important; }
+  .iso-widget .st-box { flex: 0 0 auto !important; width: 100%; }
+  .st-maps { flex-direction: column; }
+  .shape-sliders input[type=range], .belt-sliders input[type=range] { width: 100%; max-width: none; }
+  .st-tabs button { flex: 1 1 45%; }
+  .belt-sliders { grid-template-columns: 1fr 1fr; }
+}
+/* P3: status lines carry an icon and a word, never colour alone; a third state for nearly degenerate elements */
+.iso-status::before { font-weight: 800; margin-right: 0.45em; }
+.iso-status.ok::before { content: "\2713"; }
+.iso-status.bad::before { content: "\2717"; }
+.iso-status.warn::before { content: "\26A0"; }
+.iso-status.warn { background: #fff6e0; color: #7a4f00; border: 1px solid #d9a21b; }
+.st-pill.warn { background: #fff0cc; color: #7a4f00; }
+.iso-invalid { border: 2px dashed #c9473f; background: #fdf0ef; color: #7d1f19; padding: 10px 14px; border-radius: 6px; margin: 8px 0; font-family: "Helvetica Neue", Arial, sans-serif; font-size: 0.85rem; line-height: 1.5; }
+.iso-presets button[aria-checked="true"]::before, .st-gp button[aria-pressed="true"]::before, #stOpts button[aria-pressed="true"]::before { content: "\2713\00a0"; }
+.st-gp button:disabled, .st-nav button:disabled { opacity: 0.45; cursor: default; }
+/* P4 / secondary */
+.belt-compare { border: 2px solid var(--accent); border-radius: 8px; background: #fffdf8; padding: 10px 14px; margin: 0.8em 0; font-family: "Helvetica Neue", Arial, sans-serif; font-size: 0.9rem; }
+.belt-compare .belt-cmp-head { margin-bottom: 6px; }
+.belt-compare .belt-cmp-hint { margin: 0; color: var(--sub); }
+table.bmat.cmp th, table.bmat.cmp td { font-size: 0.85rem; padding: 4px 12px; }
+table.bmat.cmp tr.df td { color: #2b7a57; font-weight: 700; }
+.belt-details { margin: 0.5em 0; }
+.belt-details > summary { cursor: pointer; font-family: "Helvetica Neue", Arial, sans-serif; font-size: 0.8rem; color: var(--sub); padding: 4px 0; }
+.belt-details > summary:focus-visible, .st-snap > summary:focus-visible { outline: 2px solid var(--accent2); outline-offset: 2px; }
+.st-assume { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 0.8rem; color: var(--sub); background: #f6f2ea; border-left: 3px solid var(--accent); padding: 6px 10px; margin: 0 0 0.7em; border-radius: 0 4px 4px 0; }
+.heat-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-family: "Helvetica Neue", Arial, sans-serif; font-size: 0.72rem; color: var(--sub); margin-top: 6px; max-width: 300px; }
+.heat-legend .sw { display: inline-block; width: 16px; height: 16px; border: 1px solid #bbb; vertical-align: middle; margin-right: 4px; }
+.heat-legend .lg-note { flex-basis: 100%; }
+.st-snap { margin-top: 0.8em; font-family: "Helvetica Neue", Arial, sans-serif; font-size: 0.82rem; }
+.st-snap textarea { width: 100%; font-family: "SF Mono", Consolas, monospace; font-size: 0.72rem; margin-top: 6px; box-sizing: border-box; }
+.st-snap button { font: inherit; font-size: 0.82rem; padding: 6px 14px; border: 1px solid var(--accent2); background: #eef4fc; color: #25508f; border-radius: 16px; cursor: pointer; margin-top: 6px; }
+.st-snap button:focus-visible { outline: 2px solid var(--accent2); outline-offset: 2px; }
+
+
+/* Task 5: rotating disclosure arrow on "Check your understanding" prompts (the native marker is hidden so only one arrow shows) */
+details.check-prompt > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+details.check-prompt > summary::-webkit-details-marker { display: none; }
+details.check-prompt > summary::after { content: "\25B6"; font-size: 0.7em; transition: transform 0.2s ease; }
+details.check-prompt[open] > summary::after { transform: rotate(90deg); }
+/* Task 6: clickable rows of the Section 1 comparison table */
+table.interactable tbody tr { cursor: pointer; }
+table.interactable tbody tr:hover td { background: #f4eaf0; }
+table.interactable tbody tr.hl td { background: #fbe39a; font-weight: 700; }
+table.kmatrix.k18 td { padding: 3px 5px; font-size: 0.7rem; }
+.belt-sliders { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+
+/* Lecture 12 additions (widgets only; sidebar and shared styles untouched) */
+.iso-table tr.sel td { background: #f4eaf0; font-weight: 700; }
+.iso-table tr.sumrow td { border-top: 2px solid #999; }
+#extRows td:first-child, #modeRows td:first-child, #mshRows td:first-child { color: var(--sub); }
+</style>
+<!-- FIX #2: without JavaScript the interactive frames would be empty boxes, so hide them; all prose and figures remain. -->
+<noscript><style>.iso-widget, .iso-kbd, .pc-controls { display: none !important; }</style></noscript>
+</head>
+
+<body>
+<!-- P3: hatch pattern used (with a dashed outline) to mark invalid elements, so validity never relies on colour alone -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+<pattern id="isoHatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="8" height="8" fill="#fbe3e0"/><line x1="0" y1="0" x2="0" y2="8" stroke="#c9473f" stroke-width="2.4"/></pattern>
+</defs></svg>
+<a href="#top" id="top"></a>
+<button id="navToggle" class="nav-toggle" aria-label="Toggle navigation" aria-expanded="false" aria-controls="sidebar">&#9776; Contents</button>
+<div class="shell">
+  <nav class="sidebar" id="sidebar">
+    <div class="sidebar-head">
+      <p class="course-code">CEE 2333</p>
+      <h1 class="course-title">Fundamentals of the<br />Finite Element Method</h1>
+      <p class="course-author">Prof. Lev Khazanovich</p>
+    </div>
+    <ul class="toc-list">
+<li><a href="00_table_of_contents.html" class="toc-link"><span class="toc-num">TOC</span><span class="toc-text"><span class="toc-title">Table of Contents</span><span class="toc-sub">All lectures</span></span></a></li>
+<li><a href="01_introduction.html" class="toc-link"><span class="toc-num">01</span><span class="toc-text"><span class="toc-title">Introduction</span><span class="toc-sub">Course overview &amp; FEM basics</span></span></a></li>
+<li class="toc-group"><span class="toc-group-label">Part 1 &middot; Mathematical Foundations for FEM</span></li>
+<li><a href="02_vectors_matrices_for_fem.html" class="toc-link"><span class="toc-num">1A</span><span class="toc-text"><span class="toc-title">Vectors and Matrices</span><span class="toc-sub">Linear algebra for FEM</span></span></a></li>
+<li><a href="03_interpolation.html" class="toc-link"><span class="toc-num">2A</span><span class="toc-text"><span class="toc-title">Interpolation and Approximation</span><span class="toc-sub">Shape functions &amp; approximation theory</span></span></a></li>
+<li><a href="04_differentiation_integration.html" class="toc-link"><span class="toc-num">3A</span><span class="toc-text"><span class="toc-title">Differentiation and Integration</span><span class="toc-sub">Numerical calculus for FEM</span></span></a></li>
+<li><div class="toc-link disabled"><span class="toc-num">4A</span><span class="toc-text"><span class="toc-title">Introduction to Python and Colab<span class="toc-soon">Soon</span></span><span class="toc-sub">Coming soon</span></span></div></li>
+<li class="toc-group"><span class="toc-group-label">Part 2 &middot; The Stiffness Method</span></li>
+<li><a href="06_1d_spring_systems.html" class="toc-link"><span class="toc-num">2</span><span class="toc-text"><span class="toc-title">1-D Spring Systems</span><span class="toc-sub">The Direct Stiffness Method</span></span></a></li>
+<li><a href="07_2d_trusses.html" class="toc-link"><span class="toc-num">3</span><span class="toc-text"><span class="toc-title">2-D Trusses</span><span class="toc-sub">Transformations &amp; assembly</span></span></a></li>
+<li><a href="08_2d_frames.html" class="toc-link"><span class="toc-num">4</span><span class="toc-text"><span class="toc-title">2-D Frames</span><span class="toc-sub">Frame elements &amp; assembly</span></span></a></li>
+<li class="toc-group"><span class="toc-group-label">Part 3</span></li>
+<li><a href="09_energy_methods_fe_formulation.html" class="toc-link"><span class="toc-num">5</span><span class="toc-text"><span class="toc-title">Energy Methods and the Finite Element Formulation</span><span class="toc-sub">Minimum potential energy, frame element &amp; Rayleigh&ndash;Ritz</span></span></a></li>
+<li class="toc-group"><span class="toc-group-label">Part 4 &middot; From 1-D/2-D Structures to 3-D Continuum FEM</span></li>
+<li><a href="10_constitutive_relations.html" class="toc-link"><span class="toc-num">6</span><span class="toc-text"><span class="toc-title">Constitutive Relations</span><span class="toc-sub">3-D Hooke&rsquo;s law &rarr; plane stress/strain</span></span></a></li>
+<li><a href="11_3d_continuum_formulation.html" class="toc-link"><span class="toc-num">7</span><span class="toc-text"><span class="toc-title">3-D Continuum Formulation</span><span class="toc-sub">Kinematics, energy principle, element equations</span></span></a></li>
+<li class="toc-group"><span class="toc-group-label">Part 5 &middot; Two-Dimensional Elements</span></li>
+<li><a href="12_2d_elements_cst_bilinear.html" class="toc-link"><span class="toc-num">8</span><span class="toc-text"><span class="toc-title">2-D Elements &mdash; CST &amp; Bilinear</span><span class="toc-sub">Shape functions, stiffness, worked example</span></span></a></li>
+<li><a href="13_isoparametric_element.html" class="toc-link"><span class="toc-num">9</span><span class="toc-text"><span class="toc-title">The Isoparametric Element</span><span class="toc-sub">Natural coordinates, Jacobian, Gauss quadrature</span></span></a></li>
+<li><a href="14_Lagrange_element.html" class="toc-link"><span class="toc-num">10</span><span class="toc-text"><span class="toc-title">The Lagrange Element</span><span class="toc-sub">Nine-node element, 3&times;3 Gauss rule</span></span></a></li>
+<li><a href="15_serendipity_elements.html" class="toc-link"><span class="toc-num">11</span><span class="toc-text"><span class="toc-title">Serendipity Elements</span><span class="toc-sub">8-node, transition elements, 3-D brick</span></span></a></li>
+<li><a href="16_strains_stresses.html" class="toc-link active" aria-current="page"><span class="toc-num">12</span><span class="toc-text"><span class="toc-title">Strains, Stresses and Instabilities</span><span class="toc-sub">Bending, deformation modes, hourglass</span></span></a></li>
+<li><a href="17_bilinear_hourglass_control.html" class="toc-link"><span class="toc-num">13</span><span class="toc-text"><span class="toc-title">Shear Locking and Hourglass Control</span><span class="toc-sub">SRI, stabilization stiffness, cantilever test</span></span></a></li>
+</ul>
+    <p class="sidebar-foot">15-part outline &middot; 13 lectures published</p>
+  </nav>
+  <main class="content" id="content">
+<section class="lecture" id="lec12" aria-labelledby="lec12-marker">
+  <p class="lecture-marker" id="lec12-marker">Lecture 12 &middot; Part 5: Two-Dimensional Elements</p>
+
+<div class="page">
+<h1 id="lec12-cee-2333-introduction-to-the-finite-element-method">CEE 2333 — Introduction to the Finite Element Method</h1>
+<h2 id="lec12-lecture-12-strains-stresses">Lecture 12: Strains, Stresses and Instabilities of the Bilinear Element</h2>
+<p class="author">Prof. Lev Khazanovich</p>
+<hr/>
+
+<h2 id="lec12-learning-objectives">Learning Objectives</h2>
+<ul>
+<li>Write the shape functions, the displacement interpolation $[N]$ and the strain&ndash;displacement matrix $[B]$ of the <strong>plane rectangular bilinear element</strong> in the centred coordinates $(x',y')$, and read off which strain fields it can represent</li>
+<li>Explain the <strong>challenge with bending</strong>: straight element sides produce a <strong>spurious shear strain</strong> and an element that is <strong>too stiff</strong> in bending, and quantify the excess energy</li>
+<li>Compute <strong>stresses</strong> $\{\sigma\}=[D][B]\{d^e\}$ and explain why they are most accurate at the <strong>Gauss points</strong>; <strong>extrapolate</strong> Gauss-point stresses to the corners and sides with $r=\xi\sqrt3$, $s=\eta\sqrt3$</li>
+<li>Classify the eight nodal displacement modes of the element (3 <strong>rigid-body</strong>, 3 <strong>constant-strain</strong>, 2 <strong>bending</strong>) by their strain energy $U_e$</li>
+<li>Define a <strong>zero-energy (hourglass) mode</strong>, show why a one-point Gauss rule creates two of them, and see how they combine into <strong>mesh mechanisms</strong></li>
+</ul>
+<p><em>Outline:</em> (1) The rectangular bilinear element &middot; (2) Strains and the matrix $[B]$ &middot; (3) The challenge with bending &middot; (4) Strain energy and the eight deformation modes &middot; (5) Element and mesh instabilities (hourglass modes) &middot; (6) Stress computation and extrapolation &middot; (7) Algorithm and code &middot; (8) Conclusion and key takeaways.</p>
+
+<div class="callout">
+<p><strong>What is reused and what is new</strong></p>
+<ul>
+<li><strong>Reused, not re-derived:</strong> the isoparametric four-node element, Gauss quadrature and the rank check of Lectures 9&ndash;11 (The Isoparametric Element, The Lagrange Element, Serendipity Elements); the plane-stress matrix $[D]$ of Lecture 6 (named $[D]$ so that $E$ stays Young&rsquo;s modulus); $[K^e]=\int[B]^T[D][B]\,dV$ of Lecture 7.</li>
+<li><strong>New in this lecture:</strong> the rectangle written in centred coordinates $x',y'$, where every matrix is explicit; a hands-on look at <em>what the element cannot do</em> (bend without spurious shear), <em>where to read stresses</em>, and <em>how an under-integrated element fails</em> (zero-energy modes).</li>
+</ul>
+</div>
+<hr/>
+
+<h2 id="lec12-1-rectangular-bilinear-element">1. The Plane Rectangular Bilinear Element</h2>
+<p>Take the four-node element of Lecture 9 (The Isoparametric Element) and make it a <strong>rectangle</strong> of width $2a$ and height $2b$. Place the origin of the <em>local</em> coordinates $(x',y')$ at its centre, so that</p>
+$$
+x_1=x_4=-a,\quad x_2=x_3=a,\qquad y_1=y_2=-b,\quad y_3=y_4=b,\qquad -a\le x'\le a,\quad -b\le y'\le b .
+$$
+<p>Nodes are numbered counterclockwise from the lower left, as before. Since $x'=a\xi$ and $y'=b\eta$, the shape functions of Lecture 9 (The Isoparametric Element) become</p>
+$$
+\begin{aligned}
+N_1(x',y')&=\tfrac14\Big(1-\tfrac{x'}{a}\Big)\Big(1-\tfrac{y'}{b}\Big), & N_2(x',y')&=\tfrac14\Big(1+\tfrac{x'}{a}\Big)\Big(1-\tfrac{y'}{b}\Big),\\
+N_3(x',y')&=\tfrac14\Big(1+\tfrac{x'}{a}\Big)\Big(1+\tfrac{y'}{b}\Big), & N_4(x',y')&=\tfrac14\Big(1-\tfrac{x'}{a}\Big)\Big(1+\tfrac{y'}{b}\Big).
+\end{aligned}
+$$
+<p>The Jacobian of the map is the constant matrix $[J]=\mathrm{diag}(a,b)$, so $\det[J]=ab$, $dA=ab\,d\xi\,d\eta$ and the area is $4ab$. Because the map is so simple, $[B]$ can be written down directly in $x',y'$ without the product $[B_1][B_2][B_3]$.</p>
+
+<h3 id="lec12-displacement-approximation">Approximation of displacements</h3>
+<p>With the eight nodal DOFs $\{d^e\}=\{u_1,v_1,u_2,v_2,u_3,v_3,u_4,v_4\}^T$, the displacement field is</p>
+$$
+\begin{Bmatrix}u(x',y')\\v(x',y')\end{Bmatrix}=
+\begin{bmatrix}N_1&0&N_2&0&N_3&0&N_4&0\\0&N_1&0&N_2&0&N_3&0&N_4\end{bmatrix}
+\begin{Bmatrix}u_1\\v_1\\u_2\\v_2\\u_3\\v_3\\u_4\\v_4\end{Bmatrix}
+=[N]^T\{d^e\},\qquad
+[N]=\begin{bmatrix}N_1&0\\0&N_1\\N_2&0\\0&N_2\\N_3&0\\0&N_3\\N_4&0\\0&N_4\end{bmatrix}.
+$$
+<p>(Here $[N]$ is the $8\times2$ array, so the interpolation is written with its transpose; it is the same $2\times8$ interpolation matrix as in Lecture 9 (The Isoparametric Element).) Each component is <strong>bilinear</strong>: $u=c_1+c_2x'+c_3y'+c_4x'y'$, and likewise for $v$.</p>
+
+<hr/>
+<h2 id="lec12-2-strains-and-b">2. Strains and the Matrix $[B]$</h2>
+<p>The strains follow by differentiating the displacement field, $\{\varepsilon\}=\{\varepsilon_x,\varepsilon_y,\gamma_{xy}\}^T=[B]\{d^e\}$, where row 1 holds the $x'$-derivatives of the shape functions (acting on $u_i$), row 2 the $y'$-derivatives (acting on $v_i$) and row 3 both. Differentiating the four shape functions gives</p>
+$$
+[B]=\frac1{4ab}\begin{bmatrix}
+y'-b&0&b-y'&0&y'+b&0&-b-y'&0\\
+0&x'-a&0&-x'-a&0&x'+a&0&a-x'\\
+x'-a&y'-b&-x'-a&b-y'&x'+a&y'+b&a-x'&-b-y'
+\end{bmatrix}.
+$$
+<p>(The third row is the <em>engineering</em> shear $\gamma_{xy}=\partial u/\partial y+\partial v/\partial x$, the quantity that pairs with $\tfrac{1-\nu}2$ in $[D]$.) For example, $N_1$ gives $\partial N_1/\partial x'=\tfrac{y'-b}{4ab}$ in row 1 and $\partial N_1/\partial y'=\tfrac{x'-a}{4ab}$ in row 3, column 1, exactly as above.</p>
+
+<h3 id="lec12-strain-fields">What strain fields can the element represent?</h3>
+<p>Every entry of $[B]$ is <em>linear</em>, but in a restricted way. Row 1 contains only $y'$, row 2 only $x'$, and row 3 both. Hence</p>
+$$
+\varepsilon_x=\beta_1+\beta_2\,y',\qquad
+\varepsilon_y=\beta_3+\beta_4\,x',\qquad
+\gamma_{xy}=\beta_5+\beta_6\,x'+\beta_7\,y',
+$$
+<p>where the seven $\beta$&rsquo;s are fixed linear combinations of the nodal DOFs. Carrying out the sums gives, for the terms that matter below,</p>
+$$
+\beta_2=\frac{u_1-u_2+u_3-u_4}{4ab},\qquad \beta_4=\frac{v_1-v_2+v_3-v_4}{4ab},\qquad \beta_6=\beta_2,\qquad \beta_7=\beta_4 .
+$$
+<div class="callout principle">
+<p><strong>Three consequences.</strong></p>
+<ul>
+<li>The displacement field is bilinear, yet the strains vary only <em>linearly</em>, and only in a limited way: $\varepsilon_x$ varies with $y'$ <strong>but not with $x'$</strong>; $\varepsilon_y$ varies with $x'$ <strong>but not with $y'$</strong>.</li>
+<li>So the element cannot make the axial strain $\varepsilon_x$ vary <em>along</em> its length. A beam whose bending moment changes along $x$ needs $\varepsilon_x\propto M(x)\,y$, a term $x'y'$ in the strain, which this element does not contain: it will <strong>struggle to model a beam with moment varying along the length</strong>.</li>
+<li>The coefficient $\beta_2$ drives <em>both</em> $\varepsilon_x$ (through $y'$) and $\gamma_{xy}$ (through $x'$), and $\beta_4$ drives both $\varepsilon_y$ and $\gamma_{xy}$. You cannot create one without the other. This coupling is the root of the bending problem of the next section.</li>
+</ul>
+</div>
+
+<details class="check-prompt">
+<summary>Check your understanding: which nodal pattern makes $\beta_2\neq0$ while all four $\beta_1,\beta_3,\beta_4,\beta_5$ stay zero?</summary>
+<div class="answer">
+<p>$\beta_2=(u_1-u_2+u_3-u_4)/(4ab)$ is the alternating sum of the four $u$ values. Take $u_1=u_3=c$, $u_2=u_4=-c$ and all $v_i=0$, the field $u=c\,x'y'/(ab)$. Then $\beta_2=c/(ab)\neq0$, while $\beta_1=(-u_1+u_2+u_3-u_4)/(4a)=0$, $\beta_5=0$ (its $u$-part $a(-u_1-u_2+u_3+u_4)$ cancels) and $\beta_3=\beta_4=0$ because they contain only the $v_i$. The strains are $\varepsilon_x=\beta_2y'$ and $\gamma_{xy}=\beta_2x'$: zero at the centre of the element &mdash; this is mode 7 of Section 4; it has positive energy under the 2&times;2 rule and only becomes a zero-energy (hourglass) mode under the one-point rule.</p>
+</div>
+</details>
+
+<hr/>
+<h2 id="lec12-3-bending-challenge">3. The Challenge with Bending</h2>
+<p>The shape functions are linear along each edge, so the <strong>edges remain straight</strong> during deformation: they rotate and stretch but never curve. A rectangular block in pure bending needs its top and bottom edges to curve, with the vertical sides staying normal to them. The bilinear element can only tilt its sides and leave the top and bottom edges straight, so the right angle between neighbouring sides changes.</p>
+
+<figure>
+<svg viewBox="0 0 440 190" role="img" aria-label="Left: a rectangular block in exact pure bending, with curved top and bottom edges and sides that stay perpendicular to them. Right: the bilinear element, with straight top and bottom edges and tilted sides, so that the corner angle changes and a spurious shear strain appears." style="max-width:460px;width:100%;background:#fdfcfa;border:1px solid #e4e0da;border-radius:4px;font-family:Helvetica,Arial,sans-serif">
+  <!-- (a) exact pure bending -->
+  <rect x="35" y="50" width="140" height="80" fill="none" stroke="#999" stroke-dasharray="5 4"/>
+  <path d="M27,130 Q105,142 183,130 L167,50 Q105,58 43,50 Z" fill="rgba(59,125,216,0.13)" stroke="#3b7dd8" stroke-width="2.4"/>
+  <path d="M43,62 L43,50 L55,50" fill="none" stroke="#2b7a57" stroke-width="1.6"/>
+  <text x="105" y="26" font-size="13" text-anchor="middle" font-weight="700" fill="#7a4a63">(a) exact pure bending</text>
+  <text x="105" y="162" font-size="11.5" text-anchor="middle" fill="#555">edges curve, sides stay normal</text>
+  <text x="105" y="177" font-size="11.5" text-anchor="middle" fill="#2b7a57">no shear: right angles preserved</text>
+  <!-- (b) bilinear element -->
+  <rect x="265" y="50" width="140" height="80" fill="none" stroke="#999" stroke-dasharray="5 4"/>
+  <polygon points="257,130 413,130 397,50 273,50" fill="rgba(122,74,99,0.10)" stroke="#7a4a63" stroke-width="2.4"/>
+  <path d="M273,64 A14,14 0 0 1 287,50" fill="none" stroke="#c9473f" stroke-width="2"/>
+  <text x="300" y="46" font-size="12" fill="#c9473f" font-weight="700">angle &ne; 90&deg;</text>
+  <text x="335" y="26" font-size="13" text-anchor="middle" font-weight="700" fill="#7a4a63">(b) bilinear element</text>
+  <text x="335" y="162" font-size="11.5" text-anchor="middle" fill="#555">edges stay straight, sides tilt</text>
+  <text x="335" y="177" font-size="11.5" text-anchor="middle" fill="#c9473f">spurious shear &gamma;</text>
+</svg>
+<figcaption>Pure bending of one block: (a) the exact deformation, (b) the bilinear element. Dashed: undeformed shape (displacements exaggerated).</figcaption>
+</figure>
+<ul>
+<li>The change of angle is a <strong>shear strain</strong>. In real pure bending there is none, so this shear is <strong>spurious</strong>.</li>
+<li>The element therefore resists even pure bending with <em>both</em> normal and shear stresses, stores extra energy, and is <strong>too stiff in bending</strong>.</li>
+<li>It still <strong>converges properly with mesh refinement</strong>: the spurious shear is a discretization error that shrinks as the elements become small.</li>
+</ul>
+
+<h3 id="lec12-how-much-too-stiff">How much too stiff? A closed-form answer</h3>
+<p>Load one rectangle with the exact pure-bending displacement, $u=\kappa xy$, $v=-\tfrac\kappa2(x^2+\nu y^2)$. At the four nodes $v$ is the same constant ($-\tfrac\kappa2(a^2+\nu b^2)$), a pure translation, so the element sees only the bending mode $u_i=\kappa x_iy_i$, i.e. $u=\kappa\,x'y'$ with $\beta_2=\kappa$. Its strains are $\varepsilon_x=\kappa y'$, $\varepsilon_y=0$, $\gamma_{xy}=\kappa x'$. In plane stress ($t=1$):</p>
+$$
+U_{\text{normal}}=\tfrac12\frac{E}{1-\nu^2}\kappa^2\!\int y'^2dA=\frac{1}{1-\nu^2}\,U_{\text{exact}},\qquad
+U_{\text{shear}}=\tfrac12G\kappa^2\!\int x'^2dA=\frac{(a/b)^2}{2(1+\nu)}\,U_{\text{exact}},
+$$
+<p>where the exact field has $\sigma_x=E\kappa y$, $\sigma_y=\tau_{xy}=0$ and $U_{\text{exact}}=\tfrac12E\kappa^2\int y'^2dA=\tfrac12E\kappa^2\cdot\tfrac{4ab^3}{3}$. Adding the two parts:</p>
+$$
+\boxed{\;\frac{U_{\text{bilinear}}}{U_{\text{exact}}}=\frac1{1-\nu^2}+\frac{(a/b)^2}{2(1+\nu)}\;}
+$$
+<p>With $\nu=0.3$ this is $1.484$ for a square, $2.637$ for $a/b=2$ and $7.253$ for $a/b=4$, the numbers of Lecture 10 (The Lagrange Element). The first term, $1.099$, is a small Poisson-type error ($\varepsilon_y$ is forced to zero). <strong>The second term is the spurious shear</strong>, and it grows with the <em>square</em> of the aspect ratio: a slender element is much stiffer than the beam it represents. The 2&times;2 Gauss rule is exact here (the integrand is a polynomial of degree 2 in each variable), so this is not an integration error but a property of the shape functions.</p>
+
+<h3 id="lec12-bending-explorer">Interactive: the price of spurious shear</h3>
+<p>Change the aspect ratio $a/b$ and Poisson&rsquo;s ratio. The bar shows the energy stored by the bilinear element relative to the exact beam (the dashed line at 1), split into the normal part and the spurious shear part. The lower plot is the shear strain $\gamma_{xy}$ along the axis of a two-element beam of the Fig. 6.13-1 type, in units of the extreme-fibre bending strain $\varepsilon_{\max}=\kappa b$: the finite-element line is a sawtooth that resets in each element, the exact line is zero.</p>
+<div class="iso-widget" id="bndWidget">
+  <div class="shape-sliders">
+    <label>a/b = <output id="bndRatioOut" aria-live="off">4.0</output>
+      <input type="range" id="bndRatio" min="0.5" max="6" step="0.1" value="4" aria-label="Aspect ratio a over b"></label>
+    <label>&nu; = <output id="bndNuOut" aria-live="off">0.30</output>
+      <input type="range" id="bndNu" min="0" max="0.49" step="0.01" value="0.3" aria-label="Poisson ratio"></label>
+  </div>
+  <div class="iso-panels">
+    <figure class="iso-fig" style="flex:1 1 100%">
+      <svg id="bndSvg" viewBox="0 0 640 420" role="img" aria-label="Top: stacked bar of normal and spurious shear energy relative to the exact beam energy. Bottom: shear strain along a two-element beam, a sawtooth for the finite element and zero for the exact solution." style="max-width:660px;width:100%;background:#fdfcfa;border:1px solid #e4e0da;border-radius:4px"></svg>
+      <figcaption>Energy of the bilinear element in pure bending relative to the exact value, and the shear strain it produces</figcaption>
+    </figure>
+  </div>
+  <div class="iso-readout">
+    <div id="bndStatus" class="iso-status ok" role="status" aria-live="polite" aria-atomic="true"></div>
+    <p class="iso-area" id="bndNote" role="status" aria-live="polite"></p>
+  </div>
+</div>
+<p>Notice the zero crossing of the sawtooth: the spurious shear $\gamma_{xy}=\kappa x'$ vanishes at the <strong>centre</strong> of each element ($x'=0$), and is largest at its ends. We will use this in Section 6: <em>where</em> a stress is read matters.</p>
+
+<hr/>
+<h2 id="lec12-4-energy-and-modes">4. Strain Energy and the Eight Deformation Modes</h2>
+<p>A nodal displacement vector $\{d\}$ stores the strain energy</p>
+$$
+U_e=\tfrac12\{d\}^T[K]\{d\}=\tfrac12\{d\}^T\!\int_V[B]^T[D][B]\,dV\,\{d\}=\tfrac12\int_V\{\varepsilon\}^T[D]\{\varepsilon\}\,dV .
+$$
+<p>The element has $8$ DOFs and therefore eight independent modes. They fall into three groups:</p>
+<div class="table-scroll">
+<table class="map-table">
+<thead><tr><th>Mode</th><th>Group</th><th>Displacement field</th><th>Strains</th><th>$U_e$ (2&times;2 rule)</th><th>$U_e$ (one-point rule)</th></tr></thead>
+<tbody>
+<tr><td>1, 2</td><td>rigid translation</td><td>$v=c$ ; $u=c$</td><td>$0$</td><td>$0$ (correct)</td><td>$0$</td></tr>
+<tr><td>3</td><td>rigid rotation</td><td>$u=-\theta y',\ v=\theta x'$</td><td>$0$</td><td>$0$ (correct)</td><td>$0$</td></tr>
+<tr><td>4</td><td>constant strain</td><td>$u=\varepsilon x',\ v=\varepsilon y'$</td><td>$\varepsilon_x=\varepsilon_y=\varepsilon$</td><td>$>0$</td><td>$>0$</td></tr>
+<tr><td>5</td><td>constant strain</td><td>$u=-\varepsilon x',\ v=\varepsilon y'$</td><td>$\varepsilon_x=-\varepsilon_y=-\varepsilon$</td><td>$>0$</td><td>$>0$</td></tr>
+<tr><td>6</td><td>constant strain</td><td>$u=\gamma y'/2,\ v=\gamma x'/2$</td><td>$\gamma_{xy}=\gamma$</td><td>$>0$</td><td>$>0$</td></tr>
+<tr><td>7</td><td>bending</td><td>$u=c\,x'y'/(ab)$</td><td>$\varepsilon_x\propto y'$, $\gamma_{xy}\propto x'$</td><td>$>0$</td><td><strong>$0$ (zero-energy mode)</strong></td></tr>
+<tr><td>8</td><td>bending</td><td>$v=c\,x'y'/(ab)$</td><td>$\varepsilon_y\propto x'$, $\gamma_{xy}\propto y'$</td><td>$>0$</td><td><strong>$0$ (zero-energy mode)</strong></td></tr>
+</tbody>
+</table>
+</div>
+<p>Rigid-body motions <em>must</em> store no energy, and they do ($U_e=0$, correct). The three constant-strain modes <em>must</em> store energy ($U_e>0$). The two bending modes have zero strain at the centre ($\varepsilon_x=\varepsilon_y=\gamma_{xy}=0$ at $x'=y'=0$) but nonzero strain elsewhere. The 2&times;2 rule sees that strain; a rule that looks only at the centre does not. In other words, under the full 2&times;2 rule the null space is modes 1&ndash;3 (the kernel of the element); under the one-point rule it is modes 1&ndash;3 plus 7&ndash;8 (the kernel of the reduced element).</p>
+<h3 id="lec12-mode-explorer">Interactive: the eight modes of one element</h3>
+<p>Pick a mode and an amplitude. The deformed grid shows how the element moves; open squares are the 2&times;2 Gauss points and the black cross is the one-point location. Read the strains at the centre and the energy computed with each rule ($E=t=1$).</p>
+<div class="iso-widget" id="modeWidget">
+  <div class="iso-presets" id="modeBtns" role="radiogroup" aria-label="Choose a deformation mode"></div>
+  <div class="shape-sliders">
+    <label>amplitude s = <output id="modeSOut" aria-live="off">0.30</output>
+      <input type="range" id="modeS" min="-0.5" max="0.5" step="0.01" value="0.3" aria-label="Mode amplitude"></label>
+    <label>a/b = <output id="modeRatioOut" aria-live="off">1.0</output>
+      <input type="range" id="modeRatio" min="0.5" max="3" step="0.1" value="1" aria-label="Aspect ratio a over b"></label>
+    <label>&nu; = <output id="modeNuOut" aria-live="off">0.30</output>
+      <input type="range" id="modeNu" min="0" max="0.49" step="0.01" value="0.3" aria-label="Poisson ratio"></label>
+  </div>
+  <div class="iso-panels">
+    <figure class="iso-fig" style="flex:1 1 340px">
+      <svg id="modeSvg" viewBox="0 0 440 340" role="img" aria-label="Undeformed rectangle (dashed) and deformed grid for the selected mode, with numbered nodes and Gauss points" style="max-width:460px;width:100%;background:#fdfcfa;border:1px solid #e4e0da;border-radius:4px"></svg>
+      <figcaption>Dashed: undeformed element. Solid: deformed. Open squares: 2&times;2 Gauss points. Cross: one-point rule.</figcaption>
+    </figure>
+    <div class="iso-fig" style="flex:1 1 250px">
+      <table class="iso-table"><tbody id="modeRows"></tbody></table>
+    </div>
+  </div>
+  <div class="iso-readout">
+    <div id="modeStatus" class="iso-status ok" role="status" aria-live="polite" aria-atomic="true"></div>
+    <p class="iso-area" id="modeNote" role="status" aria-live="polite"></p>
+  </div>
+</div>
+
+<hr/>
+<h2 id="lec12-5-instabilities">5. Element and Mesh Instabilities</h2>
+<p>An instability is known as a <strong>mechanism</strong>, a <strong>kinematic mode</strong>, an <strong>hourglass mode</strong> or a <strong>zero-energy mode</strong>. The name refers to a nodal displacement that is <em>not</em> a rigid-body motion but produces <em>zero strain energy</em>. If such a mode exists, the stiffness matrix is singular beyond the rigid-body modes, and the structure can deform without resisting.</p>
+<p>The energy formula of Section 4 shows when this happens. With a quadrature rule of Gauss points $p$ and weights $W_p$,</p>
+$$
+U_e=\tfrac12\sum_pW_p\,\det[J]\,t\;\{\varepsilon_p\}^T[D]\{\varepsilon_p\},\qquad \{\varepsilon_p\}=[B(\xi_p,\eta_p)]\{d\}.
+$$
+<p>Because $[D]$ is positive definite, $U_e=0$ only if <em>every</em> sampled strain vanishes. A mode that is not rigid but has zero strain at every Gauss point is invisible to the rule.</p>
+
+<h3 id="lec12-one-point-example">Example: bilinear element with one Gauss point ($n=1$)</h3>
+<p>The single point is the centre, $\xi=\eta=0$ with weight $2\times2=4$ and $\det[J]=ab$, so</p>
+$$
+U_e=\tfrac12\{d\}^T\,\big(4ab\,t\big)\,[B(0,0)]^T[D][B(0,0)]\,\{d\}=\tfrac12\,(4abt)\,\{\varepsilon(0,0)\}^T[D]\{\varepsilon(0,0)\}
+$$
+<p>($4abt$ is the volume of the element; apart from it the energy is the single product $\{\varepsilon(0,0)\}^T[D]\{\varepsilon(0,0)\}$). The element energy depends on the three strain numbers at the centre only. The 8 DOFs minus 3 rigid-body modes leave 5 deformation modes, but the centre supplies only three strains, so the matrix has <strong>rank 3</strong>: two modes escape. They are exactly the two <strong>bending modes 7 and 8</strong> of Section 4, whose strains $\varepsilon_x=\beta_2y'$, $\gamma_{xy}=\beta_2x'$ (and the analogous pair for $v$) vanish at the centre:</p>
+$$
+\varepsilon_x=\varepsilon_y=\gamma_{xy}=0\ \text{at the centre}\quad\Rightarrow\quad U_e=0 .
+$$
+<p>These are the <strong>hourglass modes</strong> of the element. The full 2&times;2 rule samples four points at $x'=\pm a/\sqrt3$, $y'=\pm b/\sqrt3$, sees the nonzero strains there, and restores rank $8-3=5$. Section 7 confirms both ranks numerically.</p>
+
+<h3 id="lec12-mesh-mechanisms">Hourglass modes in a mesh</h3>
+<p>The danger is larger in a mesh than in one element. Adjacent elements share nodes, and an hourglass pattern of one element can continue consistently through its neighbours, so a whole patch deforms with every element in its own zero-energy mode. Take a $2\times2$ mesh of four elements. The checkerboard pattern $u_{ij}=(-1)^{i+j}$ on the nodes $(i,j)$ is, in <em>each</em> element, a multiple of $x'y'$, so each element is in mode 7 with zero strain at its centre. For this free mesh the stiffness matrix with a one-point rule has rank 12 instead of $18-3=15$: <strong>three spurious mechanisms</strong> beyond the rigid-body modes. Those are the three patterns (b), (c), (d) of Fig. 6.12-2 of Cook et al.. Whether supports remove them depends on where the supports are, which is why the rank check of Lecture 9 (The Isoparametric Element) should be run on the <em>assembled</em> problem too.</p>
+
+<h3 id="lec12-mesh-explorer">Interactive: hourglass patterns in a 2&times;2 mesh</h3>
+<p>Choose a nodal pattern and increase the amplitude. The mesh deforms, but with the <strong>one-point</strong> rule (one Gauss point at each element centre, drawn as a black dot) the strain energy stays exactly zero for the three hourglass patterns; with the 2&times;2 rule it does not. The last button is an ordinary stretch for comparison: both rules agree on it.</p>
+<div class="iso-widget" id="mshWidget">
+  <div class="iso-presets" id="mshBtns" role="radiogroup" aria-label="Choose a nodal pattern for the 2 by 2 mesh">
+    <button type="button" data-p="u" class="active" role="radio" aria-checked="true">Hourglass: u checkerboard</button>
+    <button type="button" data-p="v" role="radio" aria-checked="false">Hourglass: v checkerboard</button>
+    <button type="button" data-p="w" role="radio" aria-checked="false">Hourglass: mixed pattern</button>
+    <button type="button" data-p="s" role="radio" aria-checked="false">Ordinary: uniform stretch</button>
+  </div>
+  <div class="shape-sliders">
+    <label>amplitude = <output id="mshAmpOut" aria-live="off">0.25</output>
+      <input type="range" id="mshAmp" min="0" max="0.35" step="0.01" value="0.25" aria-label="Pattern amplitude"></label>
+  </div>
+  <div class="iso-panels">
+    <figure class="iso-fig" style="flex:1 1 340px">
+      <svg id="mshSvg" viewBox="0 0 400 340" role="img" aria-label="A two by two mesh of bilinear elements, undeformed in grey and deformed in the chosen pattern, with a black dot at the centre of each element" style="max-width:440px;width:100%;background:#fdfcfa;border:1px solid #e4e0da;border-radius:4px"></svg>
+      <figcaption>Grey: undeformed mesh. Solid: deformed mesh. Dots: the one-point Gauss locations.</figcaption>
+    </figure>
+    <div class="iso-fig" style="flex:1 1 230px">
+      <table class="iso-table"><tbody id="mshRows"></tbody></table>
+    </div>
+  </div>
+  <div class="iso-readout">
+    <div id="mshStatus" class="iso-status ok" role="status" aria-live="polite" aria-atomic="true"></div>
+    <p class="iso-area" id="mshNote" role="status" aria-live="polite"></p>
+  </div>
+</div>
+<div class="callout">
+<p><strong>Remedies.</strong> The mechanism is not a bug in the shape functions but in the rule that samples them. The simple remedy is to use the full 2&times;2 rule for the bilinear element. Reduced integration is attractive because it is cheaper and cures some over-stiffness, but it must then be combined with a device that suppresses the hourglass modes (&ldquo;hourglass control&rdquo;) or be checked, mesh by mesh, for singular systems. <a href="17_bilinear_hourglass_control.html">Lecture 13 (Shear Locking, Selective-Reduced Integration and Hourglass Control)</a> builds that device and a second remedy for locking.</p>
+</div>
+
+<details class="check-prompt">
+<summary>Check your understanding: the hourglass mode has zero energy, yet you computed in Section 3 that mode 7 stores energy with the 2&times;2 rule. Which statement is true?</summary>
+<div class="answer">
+<p>Both. Mode 7 is an actual deformation of the element, and its true strain energy, $\tfrac12\int\{\varepsilon\}^T[D]\{\varepsilon\}dV$, is positive, with normal and shear parts as computed in Section 3. It is the <em>one-point rule</em> that reports zero, because it samples the strain only at the centre, where this mode has none. A zero-energy mode is therefore a flaw of the element <em>as integrated</em>, not of the displacement field itself.</p>
+</div>
+</details>
+
+<hr/>
+<h2 id="lec12-6-stress-computation">6. Stress Computation</h2>
+<p>Stresses follow from Hooke&rsquo;s law applied to the strains of Section 2:</p>
+$$
+\{\sigma\}=[D]\{\varepsilon\}=[D][B]\{d^e\},\qquad \{\sigma\}=\{\sigma_x,\sigma_y,\tau_{xy}\}^T,\quad [D]=\frac{E}{1-\nu^2}\begin{bmatrix}1&\nu&0\\\nu&1&0\\0&0&\tfrac{1-\nu}2\end{bmatrix}
+$$
+<p>(plane stress). Since $[B]$ is not constant, the stress changes from point to point, and so the question is <em>where</em> to evaluate it. Three facts guide the choice:</p>
+<ul>
+<li><strong>Stresses and strains are more accurate at the Gauss points.</strong> The 2&times;2 Gauss points of the element (at $\xi,\eta=\pm1/\sqrt3$) are the best places to read $\{\sigma\}=[D][B]\{d^e\}$.</li>
+<li>Gauss-point values can be <strong>interpolated or extrapolated</strong> to other points of the element, e.g. to the nodes where you want to plot or compare them. The results are usually <em>more accurate than evaluating the stresses directly at those locations</em>.</li>
+<li>Stresses computed element by element are generally <strong>discontinuous</strong> across element boundaries, because only the displacement, not its derivative, is continuous.</li>
+</ul>
+
+<h3 id="lec12-extrapolation">Extrapolation from the Gauss points</h3>
+<p>Use the same bilinear interpolation, but with coordinates scaled so that the Gauss points sit at the corners of an auxiliary square. Define</p>
+$$
+r=\sqrt3\,\xi,\qquad s=\sqrt3\,\eta\qquad\Longleftrightarrow\qquad \xi=\eta=\tfrac1{\sqrt3}\ \text{gives}\ r=s=1 .
+$$
+<p>In $(r,s)$ the four Gauss points are the corners $(\mp1,\mp1)$ of the dashed square in Fig. 1 below, numbered $1(-,-),\ 2(+,-),\ 3(+,+),\ 4(-,+)$. The stress at any point $P$ is</p>
+$$
+\sigma_P=\sum_{i=1}^{4}\sigma_iN_i(r,s),\qquad N_i=\tfrac14(1\pm r)(1\pm s),\qquad \sigma\ \text{is}\ \sigma_x,\ \sigma_y\ \text{or}\ \tau_{xy},
+$$
+<p>with $\sigma_i$ the stress at Gauss point $i$ and the signs matching the corner. The element corners are $A(-1,-1),\ B(1,-1),\ C(1,1),\ D(-1,1)$ and the mid-sides $E,F,G,H$ (bottom, right, top, left).</p>
+<div class="example">
+<p class="example-label">Example</p>
+<p><strong>Corner A.</strong> At $A$: $\xi=\eta=-1$, so $r=s=-\sqrt3$. The weights are</p>
+$$
+\begin{aligned}
+N_1&=\tfrac14(1-r)(1-s)=\tfrac14(1+\sqrt3)^2=1+\tfrac{\sqrt3}2\approx1.866,\\
+N_2&=\tfrac14(1+r)(1-s)=\tfrac14(1-\sqrt3)(1+\sqrt3)=-\tfrac12,\\
+N_3&=\tfrac14(1+r)(1+s)=\tfrac14(1-\sqrt3)^2=1-\tfrac{\sqrt3}2\approx0.134,\\
+N_4&=\tfrac14(1-r)(1+s)=-\tfrac12 .
+\end{aligned}
+$$
+<p>Their sum is $1.866-0.5+0.134-0.5=1$, as it must be. The stress at the corner is $\sigma_A\approx1.866\sigma_1-0.5\sigma_2+0.134\sigma_3-0.5\sigma_4$: <em>the value at the nearest Gauss point is amplified and the neighbouring values are subtracted</em>, so extrapolated corner values tend to be more extreme than the Gauss-point values. Any <strong>linear</strong> field is reproduced exactly, since $\sum N_i=1$ and $\sum N_i\,(r_i,s_i)=(r,s)$.</p>
+</div>
+
+<h3 id="lec12-extrap-explorer">Interactive: extrapolate to any point</h3>
+<p>Set the four Gauss-point stresses (arbitrary units) or load a preset, then click a point of the element. The table gives the weights $N_i$ and the extrapolated stress.</p>
+<div class="iso-widget" id="extWidget">
+  <div class="iso-presets" id="extPresets" role="radiogroup" aria-label="Preset Gauss-point stress sets">
+    <button type="button" data-pr="lin" class="active" role="radio" aria-checked="true">Linear field 2 + 3&xi; &minus; &eta;</button>
+    <button type="button" data-pr="uni" role="radio" aria-checked="false">Uniform</button>
+    <button type="button" data-pr="bend" role="radio" aria-checked="false">Bending-like (&sigma; &prop; &eta;)</button>
+    <button type="button" data-pr="twist" role="radio" aria-checked="false">Bilinear (&xi;&eta;) term</button>
+    <button type="button" data-pr="quad" role="radio" aria-checked="false">Quadratic 8&xi;&sup2; (not reproduced)</button>
+  </div>
+  <div class="iso-presets" id="extPts" role="radiogroup" aria-label="Choose the evaluation point"></div>
+  <div class="shape-sliders" id="extSliders"></div>
+  <div class="iso-panels">
+    <figure class="iso-fig" style="flex:1 1 340px">
+      <svg id="extSvg" viewBox="0 0 400 360" role="img" aria-label="The element with the four Gauss points, the corners A to D, the mid-sides E to H and the centre, each labelled with its extrapolated stress" style="max-width:440px;width:100%;background:#fdfcfa;border:1px solid #e4e0da;border-radius:4px"></svg>
+      <figcaption>Fig. 1: Gauss points 1&ndash;4 (squares), corners A&ndash;D, mid-sides E&ndash;H and the centre O (circles) with extrapolated values</figcaption>
+    </figure>
+    <div class="iso-fig" style="flex:1 1 230px">
+      <table class="iso-table"><tbody id="extRows"></tbody></table>
+    </div>
+  </div>
+  <div class="iso-readout">
+    <div id="extStatus" class="iso-status ok" role="status" aria-live="polite" aria-atomic="true"></div>
+    <p class="iso-area" id="extNote" role="status" aria-live="polite"></p>
+  </div>
+</div>
+
+<h3 id="lec12-beam-stress">A beam in bending: stresses in practice</h3>
+<p>Return to the beam of Section 3, a cantilever of two bilinear elements loaded by a pure moment at the free end. The exact shear strain is zero everywhere. The finite-element $\gamma_{xy}$, and hence $\tau_{xy}=G\gamma_{xy}$, is the sawtooth of the plot: it equals $\kappa x'$ inside each element, jumps at the interface, and is nonzero at the 2&times;2 Gauss points $x'=\pm a/\sqrt3$. Two points to take away:</p>
+<ul>
+<li>The <strong>sampling point matters</strong>. In this particular pure-bending case the spurious shear is zero at the element centre, so the one-point (centre) value is exact for $\tau_{xy}$, while the 2&times;2 Gauss points show $\pm\kappa a/\sqrt3$. For a general stress state the 2&times;2 points are the better default (as above), but you should always ask what a computed stress would be at a different sampling point before trusting it.</li>
+<li>The jump between elements is a <strong>diagnostic</strong>: a large discontinuity of $\tau_{xy}$ or $\sigma_x$ across a shared edge tells you the mesh is too coarse for the stress gradient, exactly as in the bending example.</li>
+</ul>
+
+<details class="check-prompt">
+<summary>Check your understanding: the four Gauss-point values of $\sigma_x$ are $100,\,100,\,60,\,60$ (points 1, 2, 3, 4 as numbered above). What is $\sigma_x$ at the mid-sides $E$ (bottom) and $G$ (top)?</summary>
+<div class="answer">
+<p>Points 1, 2 are the lower pair ($s=-1$) and 3, 4 the upper pair ($s=+1$). The values depend only on $s$, so the field is linear in $\eta$ with slope $(60-100)/2=-20$ per unit $s$, i.e. $-20\sqrt3\approx-34.6$ per unit $\eta$ and the value $80$ at the centre. At $E$ ($\eta=-1$, $s=-\sqrt3$): $80+20\sqrt3\approx114.6$. At $G$ ($\eta=+1$): $80-20\sqrt3\approx45.4$. The extrapolated end values overshoot the Gauss-point values, as expected.</p>
+</div>
+</details>
+
+<hr/>
+<h2 id="lec12-7-algorithm">7. Algorithm and Code</h2>
+<div class="algorithm">
+<p><strong>Element matrix, stresses and checks for the rectangular bilinear element</strong></p>
+<ol>
+<li>Input $a$, $b$, $E$, $\nu$, $t$ and the Gauss rule ($2\times2$ by default).</li>
+<li>Set $[K^e]=[0]_{8\times8}$. For each Gauss point $(\xi_p,\eta_p)$ with weight $W_p$: evaluate $[B(a\xi_p,\,b\eta_p)]$ from Section 2, and add $t\,W_p\,ab\,[B]^T[D][B]$.</li>
+<li><strong>Rank check.</strong> $\mathrm{rank}[K^e]$ must be $8-3=5$. Rank 3 means the one-point rule: two hourglass modes.</li>
+<li><strong>After solving,</strong> compute $\{\sigma_p\}=[D][B(\xi_p,\eta_p)]\{d^e\}$ at the four Gauss points (the most accurate values).</li>
+<li><strong>Stress at any point $(\xi,\eta)$:</strong> set $r=\sqrt3\,\xi$, $s=\sqrt3\,\eta$ and evaluate $\sigma=\sum_i\sigma_iN_i(r,s)$ with $N_i=\tfrac14(1\pm r)(1\pm s)$, separately for $\sigma_x,\sigma_y,\tau_{xy}$.</li>
+</ol>
+</div>
+<h3 id="lec12-python-checks">Python: bilinear element checks (Run in-browser, or Copy to Colab)</h3>
+<p>The same algorithm in Python. It reproduces the ranks 5 and 3, the bending energy ratios 1.484, 2.637, 7.253 (the closed form of Section 3), and the corner-A weights of Section 6:</p>
+<textarea id="pc-code" readonly rows="30" spellcheck="false" aria-label="Python source of the bilinear element, ranks, bending test and stress extrapolation (read-only)" style="width:100%;font-family:Menlo,Consolas,monospace;font-size:0.78rem;line-height:1.4;padding:10px;border:1px solid var(--line);border-radius:4px;background:var(--card);color:var(--ink);box-sizing:border-box"># Nodal displacement vectors d are ordered [u1, v1, u2, v2, u3, v3, u4, v4]  (node 1 = lower left, then counterclockwise).
+import numpy as np
+
+def bilinear_B(a, b, x, y):
+    """3 x 8 strain-displacement matrix of the plane rectangular bilinear element (centre-based x', y')."""
+    return np.array([[y - b, 0, b - y, 0, y + b, 0, -b - y, 0],
+                     [0, x - a, 0, -x - a, 0, x + a, 0, a - x],
+                     [x - a, y - b, -x - a, b - y, x + a, y + b, a - x, -b - y]]) / (4 * a * b)
+
+def plane_stress_D(E, nu):
+    return E / (1 - nu**2) * np.array([[1, nu, 0], [nu, 1, 0], [0, 0, (1 - nu) / 2]])
+
+def bilinear_K(a, b, E, nu, t, n_gauss=2):
+    """8 x 8 element stiffness; n_gauss = 1 (reduced) or 2 (full)."""
+    D = plane_stress_D(E, nu)
+    pts, wts = ([0.0], [2.0]) if n_gauss == 1 else ([-1/np.sqrt(3), 1/np.sqrt(3)], [1.0, 1.0])
+    K = np.zeros((8, 8))
+    for xi, wx in zip(pts, wts):
+        for eta, wy in zip(pts, wts):
+            B = bilinear_B(a, b, a * xi, b * eta)
+            K += t * wx * wy * a * b * (B.T @ D @ B)          # det J = a b
+    return K
+
+def extrapolate(sigma_gp, xi, eta):
+    """Stress at (xi, eta) from the four 2x2 Gauss-point values (order 1:(-,-) 2:(+,-) 3:(+,+) 4:(-,+))."""
+    r, s = xi * np.sqrt(3), eta * np.sqrt(3)
+    w = 0.25 * np.array([(1 - r) * (1 - s), (1 + r) * (1 - s), (1 + r) * (1 + s), (1 - r) * (1 + s)])
+    return w @ np.asarray(sigma_gp), w
+
+# 1. rank of the element matrix: 8 DOFs - 3 rigid-body modes = 5 deformation modes
+for n in (2, 1):
+    print(f'{n}-point rule per direction: rank =', np.linalg.matrix_rank(bilinear_K(1, 1, 1, 0.3, 1, 1 if n == 1 else 2), tol=1e-9))
+
+# 2. the two bending (hourglass) modes u = x y / (a b) and v = x y / (a b)
+a = b = 1.0
+sx, sy = np.array([-1, 1, 1, -1]), np.array([-1, -1, 1, 1])
+d7 = np.zeros(8); d7[0::2] = sx * sy
+d8 = np.zeros(8); d8[1::2] = sx * sy
+for name, d in (('mode 7', d7), ('mode 8', d8)):
+    print(name, 'energy 2x2:', round(0.5 * d @ bilinear_K(a, b, 1, 0.3, 1, 2) @ d, 4),
+          ' energy 1 point:', round(0.5 * d @ bilinear_K(a, b, 1, 0.3, 1, 1) @ d, 12))
+
+# 3. pure-bending test: energy / exact for a rectangle (a/b = 1, 2, 4), nu = 0.3
+nu = 0.3
+for ratio in (1, 2, 4):
+    a, b = float(ratio), 1.0
+    d = np.zeros(8); d[0::2] = [-a*-b, a*-b, a*b, -a*b]            # u_i = x_i y_i (kappa = 1)
+    U = 0.5 * d @ bilinear_K(a, b, 1, nu, 1, 2) @ d
+    U_exact = 0.5 * 4 * a * b**3 / 3                               # (1/2) E kappa^2 integral y^2 dA
+    print(f'a/b = {ratio}: energy/exact =', round(U / U_exact, 3),
+          ' formula 1/(1-nu^2) + (a/b)^2/(2(1+nu)) =', round(1/(1-nu**2) + ratio**2/(2*(1+nu)), 3))
+
+# 4. stress extrapolation to corner A (r = s = -sqrt(3)) and a linear-field check
+_, w = extrapolate([0, 0, 0, 0], -1, -1)
+print('weights at corner A:', np.round(w, 4), ' sum =', round(w.sum(), 6))
+g = 1 / np.sqrt(3)
+gp = [2 + 3*xi - eta for xi, eta in ((-g, -g), (g, -g), (g, g), (-g, g))]     # sigma = 2 + 3 xi - eta
+print('extrapolated at A =', round(extrapolate(gp, -1, -1)[0], 6) + 0.0, ' exact =', 2 + 3*(-1) - (-1))
+</textarea>
+<noscript><p style="font-size:0.85rem;color:var(--sub)">The in-browser Python runner requires JavaScript; the code above can still be read and copied into Colab or Jupyter.</p></noscript>
+<div class="pc-controls">
+<div class="iso-presets" role="group" aria-label="Code actions">
+  <button type="button" id="pc-run">Run</button>
+  <button type="button" id="pc-copy">Copy code</button>
+</div>
+<p class="iso-kbd" style="margin:4px 0">Runs in your browser only; nothing is uploaded. The Python runtime is downloaded only after you press Run.</p>
+<p id="pc-status" class="iso-kbd" role="status" aria-live="polite" style="margin:4px 0">Backend: not loaded yet.</p>
+<p class="iso-kbd" id="pc-legend" style="margin:4px 0">Output lines: element ranks (5, then 3); energies of modes 7 and 8 (2&times;2 rule, then one-point rule); bending ratios; corner-A weights; extrapolation check. Nodal displacement vectors <code>d</code> in the code and in the widgets are ordered [u<sub>1</sub>, v<sub>1</sub>, u<sub>2</sub>, v<sub>2</sub>, &hellip;, u<sub>4</sub>, v<sub>4</sub>].</p>
+<pre id="pc-output" role="status" aria-live="polite" aria-label="Program output">Press Run to execute the code above.</pre>
+</div>
+
+<details class="check-prompt">
+<summary>Check your understanding: in <code>extrapolate</code>, what changes if you pass the corner of the <em>auxiliary</em> square, $(\xi,\eta)=(1/\sqrt3,\,1/\sqrt3)$, instead of the element corner $(1,1)$?</summary>
+<div class="answer">
+<p>Then $r=s=1$, so $N_3=1$ and $N_1=N_2=N_4=0$: the result is exactly the stress at Gauss point 3. The extrapolation is an interpolation <em>through</em> the Gauss values, so it must return them at the Gauss points. At the element corner $r=s=\sqrt3$ it extrapolates beyond them, with the weights of Section 6.</p>
+</div>
+</details>
+
+<hr/>
+<h2 id="lec12-8-conclusion">8. Conclusion and Key Takeaways</h2>
+<ul>
+<li><strong>The element.</strong> Rectangle $2a\times2b$, centred coordinates $x',y'$, bilinear shape functions, $\det[J]=ab$, $\{u,v\}^T=[N]^T\{d^e\}$ with 8 DOFs.</li>
+<li><strong>Strains.</strong> $[B]=\tfrac1{4ab}[\cdots]$, $3\times8$, with $\varepsilon_x=\beta_1+\beta_2y'$, $\varepsilon_y=\beta_3+\beta_4x'$, $\gamma_{xy}=\beta_5+\beta_6x'+\beta_7y'$ and $\beta_6=\beta_2$, $\beta_7=\beta_4$. $\varepsilon_x$ cannot vary along $x'$, so the element cannot follow a moment that varies along a beam.</li>
+<li><strong>Bending.</strong> Straight sides produce spurious shear; the element is too stiff in bending by the factor $\tfrac1{1-\nu^2}+\tfrac{(a/b)^2}{2(1+\nu)}$, growing with the square of the aspect ratio. It still converges as the mesh is refined.</li>
+<li><strong>Stresses.</strong> $\{\sigma\}=[D][B]\{d^e\}$ is most accurate at the 2&times;2 Gauss points; extrapolate with $r=\sqrt3\xi$, $s=\sqrt3\eta$ and $\sigma=\sum\sigma_iN_i$; at corner A the weights are $1.866,\,-0.5,\,0.134,\,-0.5$.</li>
+<li><strong>Modes.</strong> 3 rigid-body modes ($U_e=0$, correct), 3 constant-strain modes ($U_e>0$), 2 bending modes. A mode that is not rigid but has $U_e=0$ is a zero-energy (hourglass) mode.</li>
+<li><strong>One-point rule.</strong> $U_e=\tfrac12(4abt)\{\varepsilon(0,0)\}^T[D]\{\varepsilon(0,0)\}$: rank 3, so both bending modes become zero-energy modes; in a free $2\times2$ mesh this gives three mechanisms. The full 2&times;2 rule restores rank 5.</li>
+<li><strong>Looking ahead.</strong> Lecture 13 resolves the dilemma between the locking $2\times2$ rule and the singular one-point rule: selective-reduced integration and hourglass control. The choice of element and mesh follows later.</li>
+</ul>
+
+<h3 id="lec12-summary-table">Summary: concept &rarr; formula &rarr; common failure</h3>
+<div class="table-scroll">
+<table class="map-table">
+  <thead><tr><th scope="col">Concept</th><th scope="col">Formula</th><th scope="col">Common failure</th></tr></thead>
+  <tbody>
+    <tr><td>Shape functions</td><td>$N_i=\tfrac14(1\pm x'/a)(1\pm y'/b)$</td><td>Using global instead of centred coordinates</td></tr>
+    <tr><td>Strain matrix</td><td>$\{\varepsilon\}=[B]\{d^e\}$, $3\times8$, $\tfrac1{4ab}[\cdots]$</td><td>Forgetting the factor $\tfrac1{4ab}$; mixing $\gamma_{xy}$ with $\tfrac12\gamma_{xy}$</td></tr>
+    <tr><td>Strain field</td><td>$\varepsilon_x=\beta_1+\beta_2y'$, $\varepsilon_y=\beta_3+\beta_4x'$</td><td>Expecting $\varepsilon_x$ to vary along $x$</td></tr>
+    <tr><td>Bending stiffness</td><td>$U/U_{\text{exact}}=\tfrac1{1-\nu^2}+\tfrac{(a/b)^2}{2(1+\nu)}$</td><td>Using slender bilinear elements for beams (shear locking)</td></tr>
+    <tr><td>Gauss-point stress</td><td>$\{\sigma_p\}=[D][B(\xi_p,\eta_p)]\{d^e\}$</td><td>Evaluating $[D][B(\xi,\eta)]\{d\}$ directly at a node and treating that as the nodal stress, instead of extrapolating from the Gauss points</td></tr>
+    <tr><td>Extrapolation</td><td>$r=\sqrt3\xi$, $s=\sqrt3\eta$, $\sigma_P=\sum\sigma_iN_i(r,s)$</td><td>Using $(\xi,\eta)$ directly in $N_i$; extrapolating the wrong component</td></tr>
+    <tr><td>Zero-energy mode</td><td>$U_e=0$ for a non-rigid $\{d\}$</td><td>One-point Gauss rule: rank 3, two hourglass modes per element</td></tr>
+  </tbody>
+</table>
+</div>
+</div>
+</section>
+
+
+<hr class="lecture-sep" />
+<nav class="page-pager" style="display:flex;justify-content:space-between;margin:2.5em 0 0;font-family:'Helvetica Neue',Arial,sans-serif;font-size:0.9rem;"><a href="15_serendipity_elements.html">&larr; Serendipity Elements</a><a href="17_bilinear_hourglass_control.html">Shear Locking and Hourglass Control &rarr;</a></nav>
+<footer class="doc-end">
+      <p>CEE 2333 — Fundamentals of the Finite Element Method · Combined Course Notes</p>
+      <p>This page was developed with the assistance of various generative AI tools.</p>
+      <p><a href="#top">Back to top ↑</a></p>
+    </footer>
+  </main>
+</div>
+
+<script>
+(function () {
+  var toggle = document.getElementById('navToggle');
+  var sidebar = document.getElementById('sidebar');
+  var mobileQuery = window.matchMedia('(max-width: 760px)');
+
+  function syncSidebarA11y() {
+    if (!mobileQuery.matches) {
+      sidebar.removeAttribute('aria-hidden');
+      if ('inert' in sidebar) sidebar.inert = false;
+      return;
+    }
+    var open = sidebar.classList.contains('open');
+    sidebar.setAttribute('aria-hidden', open ? 'false' : 'true');
+    if ('inert' in sidebar) sidebar.inert = !open;
+  }
+
+  syncSidebarA11y();
+  if (mobileQuery.addEventListener) {
+    mobileQuery.addEventListener('change', syncSidebarA11y);
+  } else if (mobileQuery.addListener) {
+    mobileQuery.addListener(syncSidebarA11y);
+  }
+  window.addEventListener('resize', syncSidebarA11y);
+
+  toggle.addEventListener('click', function () {
+    sidebar.classList.toggle('open');
+    syncSidebarA11y();
+    toggle.setAttribute('aria-expanded', sidebar.classList.contains('open') ? 'true' : 'false');
+  });
+  var links = Array.prototype.slice.call(document.querySelectorAll('.toc-link'));
+  links.forEach(function (l) {
+    l.addEventListener('click', function () {
+      sidebar.classList.remove('open');
+      toggle.setAttribute('aria-expanded', 'false');
+      syncSidebarA11y();
+    });
+  });
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape' && sidebar.classList.contains('open')) {
+      sidebar.classList.remove('open');
+      toggle.setAttribute('aria-expanded', 'false');
+      syncSidebarA11y();
+      toggle.focus();
+    }
+  });
+})();
+</script>
+<script>
+/* ============================================================
+   Lecture 12 widgets: bending energy, eight modes, 2x2 hourglass mesh, stress extrapolation
+   ============================================================ */
+var LEC12 = (function () {
+  'use strict';
+  var SX = [-1, 1, 1, -1], SY = [-1, -1, 1, 1];
+  function Bm(a, b, x, y) {
+    var k = 1 / (4 * a * b);
+    return [[(y - b) * k, 0, (b - y) * k, 0, (y + b) * k, 0, (-b - y) * k, 0],
+            [0, (x - a) * k, 0, (-x - a) * k, 0, (x + a) * k, 0, (a - x) * k],
+            [(x - a) * k, (y - b) * k, (-x - a) * k, (b - y) * k, (x + a) * k, (y + b) * k, (a - x) * k, (-b - y) * k]];
+  }
+  function strain(a, b, x, y, d) {
+    var B = Bm(a, b, x, y), e = [0, 0, 0], r, c;
+    for (r = 0; r < 3; r++) for (c = 0; c < 8; c++) e[r] += B[r][c] * d[c];
+    return e;
+  }
+  /* strain energy with E = t = 1 and plane stress; n = 1 or 2 Gauss points per direction */
+  function energy(a, b, nu, d, n) {
+    var p = n === 1 ? [0] : [-1 / Math.sqrt(3), 1 / Math.sqrt(3)], w = n === 1 ? 2 : 1, c = 1 / (1 - nu * nu), U = 0, i, j, e;
+    for (i = 0; i < p.length; i++) for (j = 0; j < p.length; j++) {
+      e = strain(a, b, a * p[i], b * p[j], d);
+      U += 0.5 * w * w * a * b * c * (e[0] * e[0] + 2 * nu * e[0] * e[1] + e[1] * e[1] + (1 - nu) / 2 * e[2] * e[2]);
+    }
+    return U;
+  }
+  function N4(xi, eta) { var r = []; for (var i = 0; i < 4; i++) r.push(0.25 * (1 + SX[i] * xi) * (1 + SY[i] * eta)); return r; }
+  function fmt(v, d) {
+    d = d === undefined ? 3 : d;
+    var t = (Math.abs(v) < 0.5 * Math.pow(10, -d) ? 0 : v).toFixed(d);
+    return t.replace('-', '\u2212');
+  }
+  /* ---- DOM helpers (kept in this namespace) ---- */
+  var NS = 'http://www.w3.org/2000/svg';
+  function el(n, a, txt) {
+    var e = document.createElementNS(NS, n), k;
+    for (k in a) e.setAttribute(k, a[k]);
+    if (txt !== undefined && txt !== null) e.textContent = txt;
+    return e;
+  }
+  function clear(svg) { while (svg.firstChild) svg.removeChild(svg.firstChild); }
+  function poly(p) { return p.map(function (q) { return q[0].toFixed(1) + ',' + q[1].toFixed(1); }).join(' '); }
+  /* Radio group over the <button>s already inside `group`: role=radiogroup/radio, aria-checked (never aria-pressed),
+     roving tabindex and arrow-key selection. Selecting updates the buttons in place, so focus is never lost.
+     mark(btn|null) changes the selection without calling onSelect. */
+  function radio(group, onSelect, initial) {
+    var btns = Array.prototype.slice.call(group.querySelectorAll('button'));
+    group.setAttribute('role', 'radiogroup');
+    function mark(sel) {
+      btns.forEach(function (b, i) {
+        var on = b === sel;
+        b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', on ? 'true' : 'false');
+        if (b.removeAttribute) b.removeAttribute('aria-pressed');
+        b.className = on ? 'active' : '';
+        b.tabIndex = (on || (!sel && i === 0)) ? 0 : -1;
+      });
+    }
+    btns.forEach(function (b, i) {
+      b.addEventListener('click', function () { mark(b); onSelect(b); });
+      b.addEventListener('keydown', function (ev) {
+        var k = ev.key, j = -1, n = btns.length;
+        if (k === 'ArrowRight' || k === 'ArrowDown') j = (i + 1) % n;
+        else if (k === 'ArrowLeft' || k === 'ArrowUp') j = (i + n - 1) % n;
+        else if (k === 'Home') j = 0; else if (k === 'End') j = n - 1;
+        if (j < 0) return;
+        ev.preventDefault(); btns[j].focus(); mark(btns[j]); onSelect(btns[j]);
+      });
+    });
+    mark(initial === null || initial === undefined ? btns[0] : (initial < 0 ? null : btns[initial]));
+    return { mark: mark, buttons: btns };
+  }
+  return { SX: SX, SY: SY, Bm: Bm, strain: strain, energy: energy, N4: N4, fmt: fmt, el: el, clear: clear, poly: poly, radio: radio };
+})();
+
+/* ---------------- Widget 1: bending energy and spurious shear ---------------- */
+(function () {
+  'use strict';
+  var root = document.getElementById('bndWidget');
+  if (!root) return;
+  var Z = LEC12, svg = document.getElementById('bndSvg'), sR = document.getElementById('bndRatio'), sN = document.getElementById('bndNu'),
+      oR = document.getElementById('bndRatioOut'), oN = document.getElementById('bndNuOut'), status = document.getElementById('bndStatus'), note = document.getElementById('bndNote');
+  function draw() {
+    var r = +sR.value, nu = +sN.value, a = r, b = 1;
+    var nrm = 1 / (1 - nu * nu), shr = r * r / (2 * (1 + nu)), tot = nrm + shr;
+    /* numerical check: nodal u_i = x_i y_i (kappa = 1), 2x2 Gauss, exact energy 2 a b^3 / 3 */
+    var d = [0, 0, 0, 0, 0, 0, 0, 0], i;
+    for (i = 0; i < 4; i++) d[2 * i] = Z.SX[i] * a * Z.SY[i] * b;
+    var num = Z.energy(a, b, nu, d, 2) / (2 * a * b * b * b / 3);
+    LEC12.clear(svg);
+    /* ---- bar chart ---- */
+    var x0 = 70, x1 = 610, xmax = Math.max(2, Math.ceil(tot * 1.1)), sc = (x1 - x0) / xmax, y = 62, h = 34;
+    svg.appendChild(LEC12.el('text', { x: 20, y: 24, 'font-size': 14, 'font-weight': 700, fill: '#7a4a63' }, 'Strain energy of the bilinear element / exact beam energy'));
+    svg.appendChild(LEC12.el('rect', { x: x0, y: y, width: nrm * sc, height: h, fill: '#cfe0f6', stroke: '#3b7dd8', 'stroke-width': 1.5 }));
+    svg.appendChild(LEC12.el('rect', { x: x0 + nrm * sc, y: y, width: shr * sc, height: h, fill: '#f0d6e3', stroke: '#7a4a63', 'stroke-width': 1.5 }));
+    svg.appendChild(LEC12.el('line', { x1: x0 + sc, y1: y - 12, x2: x0 + sc, y2: y + h + 12, stroke: '#2b7a57', 'stroke-width': 2, 'stroke-dasharray': '5 3' }));
+    svg.appendChild(LEC12.el('text', { x: x0 + sc + 5, y: y - 14, 'font-size': 11, fill: '#2b7a57' }, 'exact = 1'));
+    var t;
+    for (t = 0; t <= xmax; t++) {
+      svg.appendChild(LEC12.el('line', { x1: x0 + t * sc, y1: y + h + 12, x2: x0 + t * sc, y2: y + h + 17, stroke: '#777' }));
+      svg.appendChild(LEC12.el('text', { x: x0 + t * sc, y: y + h + 30, 'font-size': 11, 'text-anchor': 'middle', fill: '#555' }, String(t)));
+    }
+    var nl = LEC12.el('text', { x: x0 + nrm * sc / 2, y: y + 22, 'font-size': 12, 'text-anchor': 'middle', fill: '#25508f' }, Z.fmt(nrm, 2));
+    svg.appendChild(nl);
+    svg.appendChild(LEC12.el('text', { x: x0 + nrm * sc + shr * sc / 2, y: y + 22, 'font-size': 12, 'text-anchor': 'middle', fill: '#7a4a63' }, shr * sc > 34 ? Z.fmt(shr, 2) : ''));
+    svg.appendChild(LEC12.el('text', { x: 20, y: y + h + 52, 'font-size': 12, fill: '#25508f' }, '\u25A0 normal part 1/(1\u2212\u03BD\u00B2) = ' + Z.fmt(nrm, 3)));
+    svg.appendChild(LEC12.el('text', { x: 250, y: y + h + 52, 'font-size': 12, fill: '#7a4a63' }, '\u25A0 spurious shear (a/b)\u00B2/(2(1+\u03BD)) = ' + Z.fmt(shr, 3)));
+    svg.appendChild(LEC12.el('text', { x: 20, y: y + h + 72, 'font-size': 13, 'font-weight': 700, fill: '#1e2430' }, 'total = ' + Z.fmt(tot, 3) + '   (Gauss 2\u00D72 numerical check: ' + Z.fmt(num, 3) + ')'));
+    /* ---- sawtooth of the shear strain ---- */
+    var py0 = 150, py1 = 405, pm = (py0 + py1) / 2, ym = Math.max(1, r) * 1.15, ys = (py1 - py0) / 2 / ym, px0 = 70, px1 = 610, xs = (px1 - px0) / 4;
+    svg.appendChild(LEC12.el('text', { x: 20, y: py0 - 8, 'font-size': 14, 'font-weight': 700, fill: '#7a4a63' }, 'Shear strain \u03B3\u2093\u1D67 / \u03B5_max along a two-element beam in pure bending'));
+    svg.appendChild(LEC12.el('rect', { x: px0, y: py0, width: px1 - px0, height: py1 - py0, fill: 'none', stroke: '#ddd' }));
+    svg.appendChild(LEC12.el('line', { x1: px0 + 2 * xs, y1: py0, x2: px0 + 2 * xs, y2: py1, stroke: '#aaa', 'stroke-dasharray': '4 4' }));
+    svg.appendChild(LEC12.el('line', { x1: px0, y1: pm, x2: px1, y2: pm, stroke: '#2b7a57', 'stroke-width': 2.4 }));
+    svg.appendChild(LEC12.el('text', { x: px1 - 4, y: pm - 6, 'font-size': 12, 'text-anchor': 'end', fill: '#2b7a57' }, 'exact: 0'));
+    var pts = [], e, xx;
+    for (e = 0; e < 2; e++) {
+      pts = [];
+      for (xx = 0; xx <= 20; xx++) { var xl = -1 + xx / 10; pts.push([px0 + (2 * e + 1 + xl) * xs, pm + (r * xl) * ys]); }
+      svg.appendChild(LEC12.el('polyline', { points: LEC12.poly(pts), fill: 'none', stroke: '#c9473f', 'stroke-width': 2.6 }));
+      [-1 / Math.sqrt(3), 1 / Math.sqrt(3)].forEach(function (g) {
+        svg.appendChild(LEC12.el('rect', { x: px0 + (2 * e + 1 + g) * xs - 4, y: pm + r * g * ys - 4, width: 8, height: 8, fill: '#fff', stroke: '#c9473f', 'stroke-width': 1.8 }));
+      });
+      svg.appendChild(LEC12.el('circle', { cx: px0 + (2 * e + 1) * xs, cy: pm, r: 4.5, fill: '#111' }));
+    }
+    svg.appendChild(LEC12.el('text', { x: px0 + xs, y: py1 + 14, 'font-size': 11, 'text-anchor': 'middle', fill: '#555' }, 'element 1'));
+    svg.appendChild(LEC12.el('text', { x: px0 + 3 * xs, y: py1 + 14, 'font-size': 11, 'text-anchor': 'middle', fill: '#555' }, 'element 2'));
+    svg.appendChild(LEC12.el('text', { x: px0 - 6, y: pm - r * ys + 4, 'font-size': 11, 'text-anchor': 'end', fill: '#c9473f' }, '+' + Z.fmt(r, 1)));
+    svg.appendChild(LEC12.el('text', { x: px0 - 6, y: pm + r * ys + 4, 'font-size': 11, 'text-anchor': 'end', fill: '#c9473f' }, '\u2212' + Z.fmt(r, 1)));
+    svg.appendChild(LEC12.el('text', { x: px0 + 4, y: py0 + 14, 'font-size': 11, fill: '#555' }, 'open squares: 2\u00D72 Gauss points  \u00B7  black dots: element centres'));
+    oR.textContent = Z.fmt(r, 1); oN.textContent = Z.fmt(nu, 2);
+    var pct = Math.round(100 * shr / tot);
+    status.className = 'iso-status ' + (tot < 1.5 ? 'ok' : (tot < 3 ? 'warn' : 'bad'));
+    status.textContent = 'a/b = ' + Z.fmt(r, 1) + ': the element stores ' + Z.fmt(tot, 2) + ' times the exact bending energy; ' + pct + ' % of it is spurious shear.';
+    note.textContent = 'At the element ends the spurious shear strain is ' + Z.fmt(r, 2) + ' times the extreme-fibre bending strain; it is zero at the centre and \u00B1' + Z.fmt(r / Math.sqrt(3), 2) + ' at the 2\u00D72 Gauss points.';
+  }
+  sR.addEventListener('input', draw); sN.addEventListener('input', draw); draw();
+})();
+
+/* ---------------- Widget 2: the eight deformation modes ---------------- */
+(function () {
+  'use strict';
+  var root = document.getElementById('modeWidget');
+  if (!root) return;
+  var Z = LEC12, svg = document.getElementById('modeSvg'), btns = document.getElementById('modeBtns'), sS = document.getElementById('modeS'), sR = document.getElementById('modeRatio'), sN = document.getElementById('modeNu'),
+      oS = document.getElementById('modeSOut'), oR = document.getElementById('modeRatioOut'), oN = document.getElementById('modeNuOut'),
+      rows = document.getElementById('modeRows'), status = document.getElementById('modeStatus'), note = document.getElementById('modeNote');
+  var MODES = [
+    { n: 1, name: 'Translation in y', g: 'rigid', f: function () { return [0, 1]; } },
+    { n: 2, name: 'Translation in x', g: 'rigid', f: function () { return [1, 0]; } },
+    { n: 3, name: 'Rigid rotation', g: 'rigid', f: function (x, y, L) { return [-y / L, x / L]; } },
+    { n: 4, name: 'Expansion', g: 'const', f: function (x, y, L) { return [x / L, y / L]; } },
+    { n: 5, name: 'Stretch / squeeze', g: 'const', f: function (x, y, L) { return [-x / L, y / L]; } },
+    { n: 6, name: 'Pure shear', g: 'const', f: function (x, y, L) { return [y / L, x / L]; } },
+    { n: 7, name: 'Bending: u \u221D x\u2032y\u2032', g: 'bend', f: function (x, y, L, sx, sy) { return [sx * sy, 0]; } },
+    { n: 8, name: 'Bending: v \u221D x\u2032y\u2032', g: 'bend', f: function (x, y, L, sx, sy) { return [0, sx * sy]; } }
+  ];
+  var st = { m: 6, s: 0.3, r: 1, nu: 0.3 };
+  function dvec() {
+    var a = st.r, b = 1, L = Math.max(a, b), d = [], i, v, M = MODES[st.m];
+    for (i = 0; i < 4; i++) { v = M.f(Z.SX[i] * a, Z.SY[i] * b, L, Z.SX[i], Z.SY[i]); d.push(st.s * L * v[0], st.s * L * v[1]); }
+    return d;
+  }
+  function build() {
+    btns.innerHTML = '';
+    MODES.forEach(function (M, i) {
+      var b = document.createElement('button'); b.type = 'button'; b.textContent = M.n + ' \u00B7 ' + M.name; b.setAttribute('data-i', i);
+      btns.appendChild(b);
+    });
+    Z.radio(btns, function (b) { st.m = +b.getAttribute('data-i'); draw(); }, st.m);
+  }
+  function draw() {
+    var a = st.r, b = 1, L = Math.max(a, b), d = dvec(), k = 120 / L, cx = 220, cy = 170, i, j, M = MODES[st.m];
+    function map(xi, eta) {
+      var N = Z.N4(xi, eta), u = 0, v = 0, q;
+      for (q = 0; q < 4; q++) { u += N[q] * d[2 * q]; v += N[q] * d[2 * q + 1]; }
+      return [cx + k * (a * xi + u), cy - k * (b * eta + v)];
+    }
+    LEC12.clear(svg);
+    svg.appendChild(LEC12.el('rect', { x: cx - k * a, y: cy - k * b, width: 2 * k * a, height: 2 * k * b, fill: 'none', stroke: '#999', 'stroke-dasharray': '5 4' }));
+    var G = 8, line;
+    for (i = 0; i <= G; i++) {
+      line = []; for (j = 0; j <= 24; j++) line.push(map(-1 + 2 * i / G, -1 + j / 12));
+      svg.appendChild(LEC12.el('polyline', { points: LEC12.poly(line), fill: 'none', stroke: '#3b7dd8', 'stroke-width': i === 0 || i === G ? 2.4 : 1 }));
+      line = []; for (j = 0; j <= 24; j++) line.push(map(-1 + j / 12, -1 + 2 * i / G));
+      svg.appendChild(LEC12.el('polyline', { points: LEC12.poly(line), fill: 'none', stroke: '#3b7dd8', 'stroke-width': i === 0 || i === G ? 2.4 : 1 }));
+    }
+    var g = 1 / Math.sqrt(3);
+    [[-g, -g], [g, -g], [g, g], [-g, g]].forEach(function (q) { var p = map(q[0], q[1]); svg.appendChild(LEC12.el('rect', { x: p[0] - 4.5, y: p[1] - 4.5, width: 9, height: 9, fill: '#fff', stroke: '#c9473f', 'stroke-width': 2 })); });
+    var c = map(0, 0);
+    svg.appendChild(LEC12.el('path', { d: 'M' + (c[0] - 7) + ',' + c[1] + ' L' + (c[0] + 7) + ',' + c[1] + ' M' + c[0] + ',' + (c[1] - 7) + ' L' + c[0] + ',' + (c[1] + 7), stroke: '#111', 'stroke-width': 2.2 }));
+    for (i = 0; i < 4; i++) {
+      var p = map(Z.SX[i], Z.SY[i]);
+      svg.appendChild(LEC12.el('circle', { cx: p[0], cy: p[1], r: 10, fill: '#fff', stroke: '#7a4a63', 'stroke-width': 1.8 }));
+      svg.appendChild(LEC12.el('text', { x: p[0], y: p[1] + 4, 'text-anchor': 'middle', 'font-size': 12, 'font-weight': 700, fill: '#7a4a63' }, String(i + 1)));
+    }
+    var e0 = Z.strain(a, b, 0, 0, d), U2 = Z.energy(a, b, st.nu, d, 2), U1 = Z.energy(a, b, st.nu, d, 1);
+    function f(v) { return Math.abs(v) < 1e-12 ? '0' : Z.fmt(v, 4); }
+    rows.innerHTML = '<tr><td>\u03B5\u2093 (centre)</td><td>' + f(e0[0]) + '</td></tr><tr><td>\u03B5\u1D67 (centre)</td><td>' + f(e0[1]) + '</td></tr><tr><td>\u03B3\u2093\u1D67 (centre)</td><td>' + f(e0[2]) + '</td></tr>' +
+      '<tr class="sumrow"><td><strong>U\u2091, 2\u00D72 rule</strong></td><td><strong>' + f(U2) + '</strong></td></tr><tr><td><strong>U\u2091, 1-point rule</strong></td><td><strong>' + f(U1) + '</strong></td></tr>';
+    oS.textContent = Z.fmt(st.s, 2); oR.textContent = Z.fmt(st.r, 1); oN.textContent = Z.fmt(st.nu, 2);
+    var zero = Math.abs(st.s) < 1e-9;
+    if (zero) { status.className = 'iso-status warn'; status.textContent = 'Amplitude is zero: nothing deforms. Move the amplitude slider.'; note.textContent = ''; return; }
+    if (M.g === 'rigid') { status.className = 'iso-status ok'; status.textContent = 'Mode ' + M.n + ' is a rigid-body motion: no strain anywhere, U\u2091 = 0 with either rule \u2014 correct.'; }
+    else if (M.g === 'const') { status.className = 'iso-status ok'; status.textContent = 'Mode ' + M.n + ' is a constant-strain mode: U\u2091 > 0, and both rules give the same value because the strain is the same at every point.'; }
+    else { status.className = 'iso-status bad'; status.textContent = 'Mode ' + M.n + ' is a bending mode: the strain is zero at the centre, so the one-point rule reports U\u2091 = 0 for a deformation that is not rigid \u2014 a zero-energy (hourglass) mode. The 2\u00D72 rule sees U\u2091 = ' + f(U2) + '.'; }
+    note.textContent = 'Energies use E = 1, t = 1, half-sizes a = ' + Z.fmt(a, 1) + ', b = 1; they scale with the square of the amplitude. Nodal displacements [u\u2081, v\u2081, u\u2082, v\u2082, u\u2083, v\u2083, u\u2084, v\u2084] of the mode: (' + d.map(function (v) { return Z.fmt(v, 2); }).join(', ') + ').';
+  }
+  sS.addEventListener('input', function () { st.s = +sS.value; draw(); });
+  sR.addEventListener('input', function () { st.r = +sR.value; draw(); });
+  sN.addEventListener('input', function () { st.nu = +sN.value; draw(); });
+  build(); draw();
+})();
+
+/* ---------------- Widget 3: 2 x 2 mesh and hourglass patterns ---------------- */
+(function () {
+  'use strict';
+  var root = document.getElementById('mshWidget');
+  if (!root) return;
+  var Z = LEC12, svg = document.getElementById('mshSvg'), btns = document.getElementById('mshBtns'), sA = document.getElementById('mshAmp'), oA = document.getElementById('mshAmpOut'),
+      rows = document.getElementById('mshRows'), status = document.getElementById('mshStatus'), note = document.getElementById('mshNote');
+  var st = { p: 'u', amp: 0.25 }, NU = 0.3, H = 0.5, TINY = 1e-9;
+  /* nodal pattern on the 3x3 node grid (i = column, j = row); u, v are the two in-plane components */
+  function disp(p, i, j) {
+    var s = (i + j) % 2 === 0 ? 1 : -1, si = (i % 2 === 0) ? 1 : -1, sj = (j % 2 === 0) ? 1 : -1;
+    if (p === 'u') return [s, 0];                          /* u checkerboard */
+    if (p === 'v') return [0, s];                          /* v checkerboard */
+    if (p === 'w') return [(i - 1) * sj, -(j - 1) * si];   /* third independent hourglass pattern */
+    return [(i - 1), 0];                                   /* uniform stretch (ordinary deformation) */
+  }
+  function elementD(p, ei, ej, amp) {
+    var nodes = [[ei, ej], [ei + 1, ej], [ei + 1, ej + 1], [ei, ej + 1]], d = [];
+    nodes.forEach(function (q) { var v = disp(p, q[0], q[1]); d.push(v[0] * amp, v[1] * amp); });
+    return d;
+  }
+  function total(p, n, amp) { var U = 0, ei, ej; for (ei = 0; ei < 2; ei++) for (ej = 0; ej < 2; ej++) U += Z.energy(H, H, NU, elementD(p, ei, ej, amp), n); return U; }
+  /* one-time self-check: the three hourglass patterns must give U1 = 0 and U2 > 0; the stretch must give U1 = U2 > 0 */
+  (function selfCheck() {
+    var res = {}, ok = true;
+    ['u', 'v', 'w', 's'].forEach(function (p) {
+      var U1 = total(p, 1, 0.25), U2 = total(p, 2, 0.25); res[p] = [U1, U2];
+      if (p === 's') ok = ok && U1 > TINY && Math.abs(U1 - U2) < 1e-9 * U2; else ok = ok && U1 < TINY && U2 > TINY;
+    });
+    var msg = '[LEC12 mesh self-check] (U1, U2) at amplitude 0.25: ' + Object.keys(res).map(function (p) { return p + '=(' + res[p][0].toExponential(2) + ', ' + res[p][1].toFixed(4) + ')'; }).join('  ');
+    if (ok) { if (window.console && console.info) console.info(msg + '  -> OK'); }
+    else if (window.console && console.warn) console.warn(msg + '  -> UNEXPECTED: an hourglass pattern or the stretch pattern changed behaviour');
+  })();
+  function draw() {
+    var k = 90, cx = 200, cy = 170, p = st.p, ei, ej, i, j;
+    function pos(i, j, def) { var v = def ? disp(p, i, j) : [0, 0]; return [cx + k * ((i - 1) + st.amp * v[0]), cy - k * ((j - 1) + st.amp * v[1])]; }
+    LEC12.clear(svg);
+    for (ei = 0; ei < 2; ei++) for (ej = 0; ej < 2; ej++) {
+      svg.appendChild(LEC12.el('polygon', { points: LEC12.poly([pos(ei, ej, 0), pos(ei + 1, ej, 0), pos(ei + 1, ej + 1, 0), pos(ei, ej + 1, 0)]), fill: 'none', stroke: '#bbb', 'stroke-width': 1.5 }));
+    }
+    for (ei = 0; ei < 2; ei++) for (ej = 0; ej < 2; ej++) {
+      var q = [pos(ei, ej, 1), pos(ei + 1, ej, 1), pos(ei + 1, ej + 1, 1), pos(ei, ej + 1, 1)];
+      svg.appendChild(LEC12.el('polygon', { points: LEC12.poly(q), fill: 'rgba(59,125,216,0.13)', stroke: '#3b7dd8', 'stroke-width': 2.2 }));
+      var c = [(q[0][0] + q[1][0] + q[2][0] + q[3][0]) / 4, (q[0][1] + q[1][1] + q[2][1] + q[3][1]) / 4];
+      svg.appendChild(LEC12.el('circle', { cx: c[0], cy: c[1], r: 5, fill: '#111' }));
+    }
+    for (i = 0; i < 3; i++) for (j = 0; j < 3; j++) { var pp = pos(i, j, 1); svg.appendChild(LEC12.el('circle', { cx: pp[0], cy: pp[1], r: 4.5, fill: '#7a4a63', stroke: '#fff', 'stroke-width': 1 })); }
+    var U1 = total(p, 1, st.amp), U2 = total(p, 2, st.amp);
+    function f(v) { return Math.abs(v) < 1e-12 ? '0' : Z.fmt(v, 4); }
+    rows.innerHTML = '<tr><td><strong>U, one-point rule</strong></td><td><strong>' + f(U1) + '</strong></td></tr><tr><td><strong>U, 2\u00D72 rule</strong></td><td><strong>' + f(U2) + '</strong></td></tr>';
+    oA.textContent = Z.fmt(st.amp, 2);
+    /* the message is chosen from the computed energies, not from the pattern name */
+    if (st.amp === 0) { status.className = 'iso-status warn'; status.textContent = 'Amplitude is zero: increase it to deform the mesh.'; }
+    else if (U1 < TINY && U2 > TINY) { status.className = 'iso-status bad'; status.textContent = 'Zero-energy pattern for the one-point rule: every element deforms (compare the grey and blue meshes), yet the one-point rule reports total strain energy ' + f(U1) + '. The 2\u00D72 rule reports ' + f(U2) + '.'; }
+    else if (U1 < TINY && U2 <= TINY) { status.className = 'iso-status ok'; status.textContent = 'No strain energy under either rule: this pattern is a rigid-body motion of the mesh.'; }
+    else if (Math.abs(U1 - U2) <= 1e-9 * Math.max(U1, U2)) { status.className = 'iso-status ok'; status.textContent = 'Ordinary deformation: both rules report the same positive energy (' + f(U2) + '), so the elements are not fooled.'; }
+    else { status.className = 'iso-status warn'; status.textContent = 'Not a zero-energy pattern: the one-point rule reports ' + f(U1) + ' and the 2\u00D72 rule ' + f(U2) + '; they differ because the strain varies inside the elements.'; }
+    note.textContent = 'E = 1, t = 1, \u03BD = 0.3, four square elements of side 1. In the free mesh the one-point stiffness matrix has rank 12 of 18, so besides the 3 rigid-body modes there are 3 hourglass mechanisms.';
+  }
+  Z.radio(btns, function (b) { st.p = b.getAttribute('data-p'); draw(); }, 0);
+  sA.addEventListener('input', function () { st.amp = +sA.value; draw(); });
+  draw();
+})();
+
+/* ---------------- Widget 4: extrapolation of Gauss-point stresses ---------------- */
+(function () {
+  'use strict';
+  var root = document.getElementById('extWidget');
+  if (!root) return;
+  var Z = LEC12, svg = document.getElementById('extSvg'), presets = document.getElementById('extPresets'), ptBox = document.getElementById('extPts'), slBox = document.getElementById('extSliders'),
+      rows = document.getElementById('extRows'), status = document.getElementById('extStatus'), note = document.getElementById('extNote');
+  var G = 1 / Math.sqrt(3), GP = [[-G, -G], [G, -G], [G, G], [-G, G]];
+  var PTS = [['A', -1, -1], ['B', 1, -1], ['C', 1, 1], ['D', -1, 1], ['E', 0, -1], ['F', 1, 0], ['G', 0, 1], ['H', -1, 0], ['O', 0, 0]];
+  var FUN = {
+    lin: function (x, y) { return 2 + 3 * x - y; }, uni: function () { return 5; }, bend: function (x, y) { return 6 * y; },
+    twist: function (x, y) { return 10 * x * y; }, quad: function (x, y) { return 8 * x * x; }
+  };
+  var st = { pr: 'lin', pt: 0, s: [0, 0, 0, 0] };
+  function load(pr) { st.pr = pr; st.s = GP.map(function (q) { return Math.round(FUN[pr](q[0], q[1]) * 1000) / 1000; }); }
+  function w(r, s) { return [0.25 * (1 - r) * (1 - s), 0.25 * (1 + r) * (1 - s), 0.25 * (1 + r) * (1 + s), 0.25 * (1 - r) * (1 + s)]; }
+  function ext(xi, eta) { var W = w(xi * Math.sqrt(3), eta * Math.sqrt(3)), v = 0, i; for (i = 0; i < 4; i++) v += W[i] * st.s[i]; return { v: v, W: W }; }
+  var sliderRefs = [], ptCtl = null, prCtl = null;
+  /* the buttons and sliders are created once; later changes only update attributes and values in place (no focus loss) */
+  function build() {
+    ptBox.innerHTML = '';
+    PTS.forEach(function (p, i) {
+      var b = document.createElement('button'); b.type = 'button'; b.textContent = p[0]; b.setAttribute('data-i', i);
+      ptBox.appendChild(b);
+    });
+    ptCtl = Z.radio(ptBox, function (b) { st.pt = +b.getAttribute('data-i'); draw(); }, st.pt);
+    slBox.innerHTML = '';
+    for (var i = 0; i < 4; i++) {
+      (function (i) {
+        var l = document.createElement('label'), o = document.createElement('output'), inp = document.createElement('input');
+        o.textContent = Z.fmt(st.s[i], 2); inp.type = 'range'; inp.min = -10; inp.max = 10; inp.step = 0.001; inp.value = st.s[i]; inp.setAttribute('aria-label', 'Stress at Gauss point ' + (i + 1));
+        inp.addEventListener('input', function () { st.s[i] = +inp.value; st.pr = 'custom'; o.textContent = Z.fmt(st.s[i], 2); if (prCtl) prCtl.mark(null); draw(); });
+        l.appendChild(document.createTextNode('\u03C3' + (i + 1) + ' = ')); l.appendChild(o); l.appendChild(inp); slBox.appendChild(l);
+        sliderRefs[i] = { inp: inp, o: o };
+      })(i);
+    }
+  }
+  function syncSliders() { for (var i = 0; i < 4; i++) { sliderRefs[i].inp.value = st.s[i]; sliderRefs[i].o.textContent = Z.fmt(st.s[i], 2); } }
+  function draw() {
+    var cx = 200, cy = 190, h = 120, i;
+    function sx(x) { return cx + h * x; } function sy(y) { return cy - h * y; }
+    LEC12.clear(svg);
+    svg.appendChild(LEC12.el('rect', { x: sx(-1), y: sy(1), width: 2 * h, height: 2 * h, fill: '#fff', stroke: '#333', 'stroke-width': 2 }));
+    svg.appendChild(LEC12.el('rect', { x: sx(-G), y: sy(G), width: 2 * h * G, height: 2 * h * G, fill: 'none', stroke: '#c9473f', 'stroke-dasharray': '6 4' }));
+    PTS.forEach(function (p, i) {
+      var e = ext(p[1], p[2]), X = sx(p[1]), Y = sy(p[2]), sel = i === st.pt;
+      svg.appendChild(LEC12.el('circle', { cx: X, cy: Y, r: sel ? 9 : 6, fill: sel ? '#7a4a63' : '#fff', stroke: '#7a4a63', 'stroke-width': 1.8 }));
+      var lx = X + (p[1] < 0 ? -14 : (p[1] > 0 ? 14 : 0)), ly = Y + (p[2] < 0 ? 24 : (p[2] > 0 ? -14 : (p[1] === 0 ? 24 : 4)));
+      var anchor = p[1] < 0 ? 'end' : (p[1] > 0 ? 'start' : 'middle');
+      svg.appendChild(LEC12.el('text', { x: lx, y: ly, 'text-anchor': anchor, 'font-size': 12, fill: '#25508f', 'font-weight': sel ? 700 : 400 }, p[0] + ': ' + Z.fmt(e.v, 2)));
+    });
+    GP.forEach(function (q, i) {
+      var X = sx(q[0]), Y = sy(q[1]);
+      svg.appendChild(LEC12.el('rect', { x: X - 7, y: Y - 7, width: 14, height: 14, fill: '#111' }));
+      svg.appendChild(LEC12.el('text', { x: X, y: Y + 4, 'text-anchor': 'middle', 'font-size': 10, fill: '#fff', 'font-weight': 700 }, String(i + 1)));
+    });
+    var P = PTS[st.pt], e = ext(P[1], P[2]), r = P[1] * Math.sqrt(3), s = P[2] * Math.sqrt(3), html = '';
+    html += '<tr><td>point</td><td><strong>' + P[0] + '</strong> (\u03BE, \u03B7) = (' + P[1] + ', ' + P[2] + ')</td></tr>';
+    html += '<tr><td>r, s</td><td>' + Z.fmt(r, 3) + ', ' + Z.fmt(s, 3) + '</td></tr>';
+    for (i = 0; i < 4; i++) html += '<tr><td>N' + (i + 1) + ' \u00B7 \u03C3' + (i + 1) + '</td><td>' + Z.fmt(e.W[i], 3) + ' \u00D7 ' + Z.fmt(st.s[i], 2) + '</td></tr>';
+    html += '<tr class="sumrow"><td><strong>\u03A3N\u1D62 = ' + Z.fmt(e.W.reduce(function (a, b) { return a + b; }, 0), 3) + '</strong></td><td><strong>\u03C3<sub>' + P[0] + '</sub> = ' + Z.fmt(e.v, 3) + '</strong></td></tr>';
+    rows.innerHTML = html;
+    if (FUN[st.pr]) {
+      var ex = FUN[st.pr](P[1], P[2]), er = e.v - ex;
+      status.className = 'iso-status ' + (Math.abs(er) < 0.02 ? 'ok' : 'warn');
+      var gpTxt = st.pr === 'quad' ? 'All four Gauss points read 8/3 \u2248 ' + Z.fmt(8 / 3, 3) + ', so every extrapolated value is 8/3. ' : '';
+      status.textContent = gpTxt + (Math.abs(er) < 0.02 ? 'Extrapolated stress at ' + P[0] + ' = ' + Z.fmt(e.v, 2) + ', the exact value of this field (' + Z.fmt(ex, 2) + ').' :
+        'Extrapolated stress at ' + P[0] + ' = ' + Z.fmt(e.v, 2) + ' but the exact value of this field is ' + Z.fmt(ex, 2) + ' (error ' + Z.fmt(er, 2) + ').');
+      note.textContent = st.pr === 'quad' ? 'The field 8\u03BE\u00B2 is quadratic: all four Gauss points read 8/3, so the bilinear extrapolation cannot see the curvature. Linear and bilinear fields are reproduced exactly.' :
+        'Linear and bilinear fields (in \u03BE, \u03B7) are reproduced exactly by the extrapolation, because \u03A3N\u1D62 = 1 and the N\u1D62 are bilinear in (r, s).';
+    } else {
+      status.className = 'iso-status ok'; status.textContent = 'Custom Gauss-point values: extrapolated stress at ' + P[0] + ' = ' + Z.fmt(e.v, 2) + '.';
+      note.textContent = 'Move a slider to see how the corner values react: the value at the nearest Gauss point is multiplied by 1.866, the opposite one by 0.134, the two neighbours by \u22120.5.';
+    }
+  }
+  load('lin'); build();
+  prCtl = Z.radio(presets, function (b) { load(b.getAttribute('data-pr')); syncSliders(); draw(); }, 0);
+  draw();
+})();
+
+/* ============================================================
+   Python "Run" button (Pyodide in a Web Worker, loaded only after the first click)
+   initTimer : watches worker start-up. 8 s until the worker reports 'loaded' (pyodide.js fetched), then re-armed
+               for 40 s until 'ready' (loadPyodide + NumPy). Cleared on ready / error / fail.
+   runTimer  : 30 s watchdog, armed only when the run message is posted. Cleared on done / error / fail.
+   gen       : generation counter, bumped by start() and fail(); messages and timers from an older worker are ignored.
+   ============================================================ */
+(function () {
+  var ENABLED = true, PYODIDE = 'https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js';
+  var ta = document.getElementById('pc-code'), run = document.getElementById('pc-run'), out = document.getElementById('pc-output'),
+      st = document.getElementById('pc-status'), cp = document.getElementById('pc-copy');
+  if (!ta || !run || !out) return;
+  var worker = null, workerUrl = null, ready = false, busy = false, gen = 0, initTimer = null, runTimer = null;
+  function clearTimers() { clearTimeout(initTimer); clearTimeout(runTimer); initTimer = runTimer = null; }
+  function killWorker() {
+    if (worker) { try { worker.terminate(); } catch (e) {} }
+    worker = null; ready = false;
+    if (workerUrl) { try { URL.revokeObjectURL(workerUrl); } catch (e) {} workerUrl = null; }
+  }
+  function say(t) { out.textContent = t; }
+  function copy() {
+    function done(ok) { st.textContent = ok ? 'Code copied to the clipboard.' : 'Copy blocked here: select the text and press Ctrl+C.'; if (!ok) { ta.focus(); ta.select(); } }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(ta.value).then(function () { done(true); }, function () { done(false); });
+    else { ta.focus(); ta.select(); try { done(document.execCommand('copy')); } catch (e) { done(false); } }
+  }
+  cp.addEventListener('click', copy);
+  if (!ENABLED) { run.disabled = true; st.textContent = 'In-browser execution is switched off; use Copy.'; return; }
+  function fail(msg) {
+    gen++; clearTimers(); killWorker();      /* any late message or timer from the old worker is now ignored */
+    busy = false; run.disabled = false;
+    say(msg + '\n\nThe in-browser Python runtime is unavailable. Use "Copy code" and paste it into Colab or Jupyter (NumPy required).');
+    st.textContent = 'Backend: unavailable.';
+  }
+  function start(cb) {
+    if (ready && worker) return cb();         /* cached worker: no init timer on later runs */
+    killWorker(); clearTimers(); gen++;
+    var myGen = gen, w;
+    var src = "importScripts('" + PYODIDE + "');postMessage({type:'loaded'});var py;onmessage=async function(e){try{" +
+      "if(e.data.type==='init'){py=await loadPyodide();await py.loadPackage('numpy');postMessage({type:'ready'});}" +
+      "else{var o='';py.setStdout({batched:function(s){o+=s+String.fromCharCode(10);}});py.setStderr({batched:function(s){o+=s+String.fromCharCode(10);}});" +
+      "await py.runPythonAsync(e.data.code);postMessage({type:'done',out:o});}}catch(err){postMessage({type:'error',msg:String(err)});}};";
+    try { workerUrl = URL.createObjectURL(new Blob([src], { type: 'text/javascript' })); w = worker = new Worker(workerUrl); }
+    catch (e) { return fail('Could not start a Web Worker (' + e.message + ').'); }
+    function arm(ms, msg) { clearTimeout(initTimer); initTimer = setTimeout(function () { if (myGen === gen) fail(msg); }, ms); }
+    arm(8000, 'Timed out after 8 s while loading Pyodide.');
+    w.onerror = function () { if (myGen === gen) fail('Could not load Pyodide (network blocked or offline).'); };
+    w.onmessage = function (ev) {
+      if (myGen !== gen || w !== worker) return;      /* stale worker */
+      var m = ev.data;
+      if (m.type === 'loaded') { st.textContent = 'Backend: starting Python and installing NumPy...'; arm(40000, 'Timed out while installing NumPy.'); }
+      else if (m.type === 'ready') { clearTimeout(initTimer); initTimer = null; ready = true; st.textContent = 'Backend: Pyodide (Python + NumPy) in a Web Worker.'; cb(); }
+      else if (m.type === 'done') { clearTimeout(runTimer); runTimer = null; busy = false; run.disabled = false; say(m.out || '(no output)'); }
+      else if (m.type === 'error') {
+        clearTimeout(initTimer); clearTimeout(runTimer); initTimer = runTimer = null; busy = false; run.disabled = false;
+        if (!ready) killWorker();
+        say('Python error:\n' + m.msg);
+      }
+    };
+    w.postMessage({ type: 'init' });
+  }
+  run.addEventListener('click', function () {
+    if (busy) return;
+    busy = true; run.disabled = true;
+    if (!ready) { say('Loading the Python runtime (first run only)...'); st.textContent = 'Backend: loading Pyodide from a CDN...'; }
+    start(function () {
+      var myGen = gen;
+      say('Running...');
+      clearTimeout(runTimer);
+      runTimer = setTimeout(function () { if (myGen === gen) fail('The script ran for more than 30 s and was stopped.'); }, 30000);
+      worker.postMessage({ type: 'run', code: ta.value });
+    });
+  });
+})();
+
+</script>
+</body>
+</html>

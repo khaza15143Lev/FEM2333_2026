@@ -1,0 +1,2163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- CHANGELOG: Lecture 11 fixes (robustness / accessibility pass)
+ A  code textarea: raw < > & (no entity escaping), source comment, aria-readonly, visible read-only hint beside Run/Copy.
+ B  Run IIFE: named loadTimer / installTimer / runTimer; installTimer starts on a new 'loaded' worker message (after pyodide.js is fetched); all three cleared in fail() and on 'ready'; second Run reuses the worker with no load/install timers.
+ C  brick widget: JS comment above proj() documenting the projection convention; legend text must be kept in sync.
+ D  MathJax: startup.ready (added to the existing config, before the CDN tag so it takes effect) sets window.__mjReady; #mj-fallback note unhidden after 6 s if MathJax never became ready.
+ E  <noscript> also hides #s8-code, #s8-actions, #s8-status, #s8-output, #mj-fallback; noscript paragraph added by the code block.
+ F  Python snippet: matrix_rank on K / max|K| with tol=1e-8 (serendipity and brick); printed ranks 13 / 12 and 18 / 6 verified by running the snippet.
+ G  dead CSS: option (a) chosen - removed .iso-invalid, .iso-status.warn (+::before), .st-pill.warn. Option (b) rejected: with the slider step of 0.05 the sampled min det[J] jumps from 0.15 to 0 while 5 % of the centre value is about 0.11, so a "nearly degenerate" state would be unreachable.
+ H  check-prompt <details>: list-style:none and summary::marker{content:""} added next to the WebKit rule (Firefox no longer shows the native triangle).
+ I  canvases keep role="img"; aria-describedby -> #serKbdHint / #trKbdHint (new ids on the .iso-kbd keyboard hints).
+ J  #serNote, #trInfo, #edgeNote, #brkNote: aria-live="off" (role="status" dropped so it cannot re-enable live announcement); status lines stay polite.
+ K  .page-pager inline style moved to the stylesheet (next to .doc-end), identical declarations.
+ L  (optional, applied) edge demo starts at u_m = 0.10 (the average of the end values), so the first state reads "Compatible only by accident".
+ M  (optional, applied) textarea: wrap="off", white-space:pre, overflow-x:auto.
+ Content-consistency pass (no change to sidebar, pager, widgets, JS, CSS, MathJax config or the Python snippet):
+ N1 brick section: removed the reference to a mislabelled slide figure; now only states that node i+4 sits above node i and that the dashed edges are hidden at node 4 (matches the SVG).
+ N2 transition example: one-sentence remark on the signs of N5 and N6 (positive inside the parent square; equal to N5 and N8 of Section 2; Kronecker / partition-of-unity checks hold).
+ N3 transition section: reminder that side nodes must stay in the middle half of their side even when only some sides are quadratic.
+ N4 ARIA: checked, no edit needed - #serNote, #trInfo, #edgeNote, #brkNote already carry only aria-live="off" (role="status" was dropped in the previous pass); the four status lines keep role="status" aria-live="polite".
+ N5 editorial: removed remaining slide-to-HTML phrasing ("The slides stop at...", "Follow the slides", "slide version of [B3]", "the slides call this matrix [E]"); numerical claims unchanged.
+ Issue 1 (sidebar TOC: active entry and footer count) intentionally left untouched.
+-->
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CEE 2333 — Lecture 11: Serendipity Elements, Transition Elements and the 3-D Brick</title>
+<script>
+window.__mjReady = false;
+window.MathJax = {
+  tex: {
+    inlineMath: [['\\(', '\\)'], ['$', '$']],
+    displayMath: [['$$', '$$'], ['\\[', '\\]']]
+  },
+  /* FIX D: must be defined before the CDN script runs, otherwise MathJax has already started. */
+  startup: {
+    ready: function () {
+      window.MathJax.startup.defaultReady();
+      window.__mjReady = true;
+      var n = document.getElementById('mj-fallback');
+      if (n) n.hidden = true;
+    }
+  }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js"></script>
+<script>
+/* FIX D: if the CDN never delivered MathJax, show the note after ~6 s (rendering is never blocked). */
+setTimeout(function () {
+  if (!window.__mjReady) { var n = document.getElementById('mj-fallback'); if (n) n.hidden = false; }
+}, 6000);
+</script>
+<style>
+/* ============================================================
+   CEE 2333 — Combined Course Notes
+   Unified design system applied across all merged lectures
+   ============================================================ */
+
+:root {
+  --ink: #1e2430;
+  --sub: #4a5264;
+  --accent: #7a4a63;
+  --accent2: #3b7dd8;
+  --bg: #fbfaf8;
+  --card: #ffffff;
+  --line: #e4e0da;
+  --note-bg: #f4f0f8;
+  --note-border: #7a4a63;
+  --sidebar-bg: #23222a;
+  --sidebar-ink: #eae7e2;
+  --sidebar-sub: #9d97a8;
+  --sidebar-line: rgba(255, 255, 255, 0.1);
+  --sidebar-active: #c98fa8;
+  --sidebar-width: 300px;
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  line-height: 1.65;
+}
+
+#top { position: absolute; top: 0; }
+
+/* ---------- layout shell ---------- */
+
+.shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  width: var(--sidebar-width);
+  flex: 0 0 var(--sidebar-width);
+  height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.28) var(--sidebar-bg);
+  background: var(--sidebar-bg);
+  color: var(--sidebar-ink);
+  padding: 34px 22px 40px;
+  font-family: "Helvetica Neue", Arial, sans-serif;
+}
+
+.sidebar::-webkit-scrollbar { width: 9px; }
+.sidebar::-webkit-scrollbar-track { background: var(--sidebar-bg); }
+.sidebar::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.28);
+  border-radius: 5px;
+  border: 2px solid var(--sidebar-bg);
+}
+.sidebar::-webkit-scrollbar-thumb:hover { background-color: rgba(255, 255, 255, 0.45); }
+
+.sidebar-head { margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid var(--sidebar-line); }
+
+.course-code {
+  margin: 0 0 6px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  color: var(--sidebar-active);
+  font-weight: 700;
+}
+
+.course-title {
+  margin: 0 0 10px;
+  font-size: 1.15rem;
+  line-height: 1.35;
+  font-weight: 700;
+  color: var(--sidebar-ink);
+}
+
+.course-author {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--sidebar-sub);
+}
+
+.toc-list { list-style: none; margin: 0; padding: 0; }
+
+.toc-list li { margin-bottom: 2px; }
+
+.toc-link {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  padding: 9px 10px;
+  border-radius: 6px;
+  text-decoration: none;
+  color: var(--sidebar-sub);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.toc-link:hover { background: rgba(255, 255, 255, 0.06); color: var(--sidebar-ink); }
+
+.toc-link.active {
+  background: rgba(201, 143, 168, 0.16);
+  color: var(--sidebar-ink);
+}
+
+.toc-link.active .toc-num { color: var(--sidebar-active); }
+
+.toc-num {
+  font-family: "SF Mono", Consolas, monospace;
+  font-size: 0.72rem;
+  color: var(--sidebar-sub);
+  flex: 0 0 auto;
+  padding-top: 2px;
+}
+
+.toc-text { display: flex; flex-direction: column; gap: 2px; }
+
+.toc-title { font-size: 0.88rem; line-height: 1.3; }
+
+.toc-sub { font-size: 0.72rem; color: var(--sidebar-sub); line-height: 1.3; }
+
+.toc-group { margin: 16px 0 4px; padding: 0 10px; }
+
+.toc-group-label {
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.68rem;
+  color: var(--sidebar-sub);
+  font-weight: 700;
+}
+
+.toc-link.disabled { cursor: default; opacity: 0.5; }
+
+.toc-link.disabled:hover { background: none; color: var(--sidebar-sub); }
+
+.toc-soon {
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--sidebar-sub);
+  border: 1px solid var(--sidebar-line);
+  border-radius: 9px;
+  padding: 1px 6px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.sidebar-foot {
+  margin-top: 26px;
+  padding-top: 16px;
+  border-top: 1px solid var(--sidebar-line);
+  font-size: 0.72rem;
+  color: var(--sidebar-sub);
+  letter-spacing: 0.03em;
+}
+
+.nav-toggle { display: none; }
+
+.content {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 56px 56px 120px;
+  max-width: 900px;
+}
+
+.lecture { max-width: 780px; }
+
+.lecture-marker {
+  margin: 0 0 6px;
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+hr.lecture-sep {
+  border: none;
+  border-top: 2px dashed var(--line);
+  margin: 4.5em 0;
+  max-width: 780px;
+}
+
+.doc-end {
+  margin-top: 4em;
+  padding-top: 1.4em;
+  border-top: 1px solid var(--line);
+  color: var(--sub);
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  font-size: 0.85rem;
+  text-align: center;
+  max-width: 780px;
+}
+
+.doc-end a { color: var(--accent2); }
+
+.page-pager {
+  display: flex;
+  justify-content: space-between;
+  margin: 2.5em 0 0;
+  font-family: 'Helvetica Neue', Arial, sans-serif;
+  font-size: 0.9rem;
+}
+
+/* ---------- typography ---------- */
+
+h1 {
+  font-size: 1.9rem;
+  margin: 0.2em 0 0.3em;
+  border-bottom: 3px solid var(--accent);
+  padding-bottom: 0.4em;
+  color: var(--ink);
+}
+
+h2 {
+  font-size: 1.4rem;
+  color: var(--accent);
+  margin-top: 2.4em;
+  border-top: 1px solid var(--line);
+  padding-top: 1em;
+}
+
+h3 {
+  font-size: 1.1rem;
+  color: var(--sub);
+  margin-top: 1.7em;
+}
+
+h4 { font-size: 1rem; color: var(--sub); margin-top: 1.4em; }
+
+p, li { color: var(--ink); }
+
+strong { color: var(--ink); }
+
+em { color: inherit; }
+
+a { color: var(--accent2); }
+
+::selection { background: #dcd3e6; }
+
+/* subtitle / author style lines that appear under a title */
+.subtitle, .doc-sub, p.subtitle {
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  color: var(--sub);
+  margin-top: -0.4em;
+  font-size: 1.05rem;
+}
+
+p.author, div.prof, div.author {
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  color: var(--sub);
+  font-size: 0.95rem;
+  margin: 0.2em 0 1em;
+}
+
+/* small "kicker"/eyebrow labels used above titles in a few lectures */
+.eyebrow, .utility, .sheet-kicker, .sheet-tag, .fem-label, .example-label,
+.panel-label, .toc-title.eyebrow {
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.72rem;
+  color: var(--accent);
+  font-weight: 700;
+  margin: 0 0 0.4em;
+  display: block;
+}
+
+.mesh-caption {
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  font-size: 0.86rem;
+  color: var(--sub);
+  font-style: italic;
+  text-align: center;
+  margin: 0.6em 0 1.4em;
+}
+
+/* small metadata rows (e.g. Source / Scope / Applied-to) laid out as spans */
+.divider, .revline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 22px;
+  border-top: 1px dashed var(--line);
+  margin: 1em 0;
+  padding-top: 0.7em;
+  font-size: 0.85rem;
+  color: var(--sub);
+}
+
+.divider span, .revline span { color: var(--sub); }
+.divider b, .revline b { color: var(--ink); }
+
+/* plain layout wrappers carried over from source documents: neutral */
+.page, .wrap, .sheet-stack, .hero, .hero-inner, .hero-text,
+.title-block, .titleblock, .masthead {
+  display: block;
+  max-width: 100%;
+}
+
+/* intro lecture's masthead labels, mapped onto the shared label styles */
+.kicker { font-family: "Helvetica Neue", Arial, sans-serif; text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.72rem; color: var(--accent); font-weight: 700; margin: 0 0 0.4em; display: block; }
+p.byline { font-family: "Helvetica Neue", Arial, sans-serif; color: var(--sub); font-size: 0.95rem; margin: 0.2em 0 1em; }
+footer.page-footer, footer.doc-footer { margin-top: 3em; padding-top: 1.2em; border-top: 1px solid var(--line); color: var(--sub); font-family: "Helvetica Neue", Arial, sans-serif; font-size: 0.82rem; text-align: center; }
+
+/* Lecture 2a masthead subtitle line */
+.sub { font-family: "Helvetica Neue", Arial, sans-serif; color: var(--sub); font-size: 1rem; margin-top: 0.3em; line-height: 1.5; }
+
+/* FIX #8: removed dead svg.diagram rules (they belonged to Lecture 3, not this file). */
+
+.sheet, .wrap-sheet {
+  display: block;
+  margin: 2em 0;
+}
+
+/* blockquote used for editorial / revision notes */
+blockquote {
+  background: var(--note-bg);
+  border-left: 4px solid var(--note-border);
+  margin: 1.2em 0;
+  padding: 0.7em 1.1em;
+  border-radius: 0 4px 4px 0;
+  font-size: 0.95rem;
+  color: #4a3450;
+}
+
+blockquote p { margin: 0.3em 0; }
+
+/* ---------- check-your-understanding prompts ---------- */
+
+details.check-prompt {
+  margin: 1.4em 0;
+  max-width: 780px;
+}
+
+details.check-prompt > summary {
+  cursor: pointer;
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #3b8f6b;
+  padding: 9px 14px;
+  background: #f0f8f4;
+  border: 1px solid #3b8f6b;
+  border-radius: 4px;
+}
+
+details.check-prompt[open] > summary { border-radius: 4px 4px 0 0; margin-bottom: 0; }
+
+details.check-prompt > summary::-webkit-details-marker { color: #3b8f6b; }
+
+details.check-prompt > div.answer {
+  padding: 0.8em 1.1em;
+  background: var(--card);
+  border: 1px solid #3b8f6b;
+  border-top: none;
+  border-radius: 0 0 4px 4px;
+  font-size: 0.92rem;
+}
+
+/* unified "callout / note box" treatment for the many custom box
+   classes used across the original lectures (panels, definitions,
+   examples, principles, algorithms, correction notes, etc.) */
+div.callout, div.definition, div.example, div.principle, div.panel,
+div.algorithm, div.fem-callout, div.legend, div.eq-block {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent2);
+  border-radius: 6px;
+  padding: 1em 1.2em;
+  margin: 1.4em 0;
+  font-size: 0.96rem;
+}
+
+div.definition { border-left-color: var(--accent); }
+div.example { border-left-color: #3b8f6b; }
+div.principle { border-left-color: #b8862f; }
+
+/* tables */
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1.4em 0;
+  font-size: 0.92rem;
+  overflow-x: auto;
+  display: table;
+}
+
+div.table-scroll { overflow-x: auto; margin: 1.4em 0; }
+div.table-scroll table { margin: 0; }
+
+th, td {
+  border: 1px solid var(--line);
+  padding: 8px 12px;
+  text-align: left;
+}
+
+th, tr.header th, tr.header td {
+  background: #f1ede6;
+  color: var(--accent);
+}
+
+tr:nth-child(even) td, tr.even td {
+  background: #fbfaf7;
+}
+
+table.kmatrix td, table.map-table td { text-align: center; }
+
+/* figures / images / diagrams */
+figure {
+  margin: 1.8em 0;
+  text-align: center;
+}
+
+figure img, figure svg { margin: 0 auto; }
+
+figcaption {
+  font-size: 0.86rem;
+  color: var(--sub);
+  margin-top: 0.6em;
+  font-style: italic;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+  margin: 1.6em auto;
+  border-radius: 4px;
+}
+
+svg { max-width: 100%; height: auto; }
+
+.chart-wrap, .mesh-wrap { margin: 1.8em auto; text-align: center; max-width: 100%; }
+
+/* code */
+code {
+  background: #f1ede6;
+  padding: 0.15em 0.4em;
+  border-radius: 3px;
+  font-size: 0.9em;
+  font-family: "SF Mono", Consolas, monospace;
+}
+
+pre {
+  background: #f4f4f0;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 1rem;
+  overflow-x: auto;
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
+pre code { background: none; padding: 0; }
+
+hr {
+  border: none;
+  border-top: 1px solid var(--line);
+  margin: 2.4em 0;
+}
+
+span.num, span.swatch {
+  display: inline-block;
+  font-family: "SF Mono", Consolas, monospace;
+  font-size: 0.85em;
+  background: #f1ede6;
+  border-radius: 3px;
+  padding: 0 0.35em;
+}
+
+/* ---------- responsive ---------- */
+
+@media (max-width: 900px) {
+  .content { padding: 40px 24px 100px; max-width: 100%; }
+  .lecture, .doc-end, hr.lecture-sep { max-width: 100%; }
+}
+
+@media (max-width: 760px) {
+  .nav-toggle {
+    display: block;
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 40;
+    background: var(--sidebar-bg);
+    color: var(--sidebar-ink);
+    border: none;
+    border-radius: 20px;
+    padding: 10px 16px;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 0.85rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  }
+
+  .shell { display: block; }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    z-index: 30;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.3);
+  }
+
+  .sidebar.open { transform: translateX(0); }
+
+  .content { padding: 84px 20px 100px; }
+}
+
+@media print {
+  .sidebar, .nav-toggle { display: none; }
+  .shell { display: block; }
+  .content { padding: 0; max-width: 100%; }
+}
+
+
+/* ---------- Lecture 10: interactive isoparametric mapping widget ---------- */
+.iso-widget { border: 1px solid var(--line); border-left: 4px solid var(--accent2); border-radius: 6px; background: var(--card); padding: 1em 1.2em; margin: 1.6em 0; font-family: "Helvetica Neue", Arial, sans-serif; }
+.iso-presets { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 0.8em; }
+.iso-presets button { font: inherit; font-size: 0.8rem; padding: 6px 12px; border: 1px solid var(--accent2); background: #eef4fc; color: #25508f; border-radius: 16px; cursor: pointer; }
+.iso-presets button:hover { background: #dce9f9; }
+.iso-panels { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; justify-content: center; }
+.iso-fig { margin: 0; flex: 1 1 240px; min-width: 0; }
+.iso-fig:last-child { flex: 1.35 1 320px; }
+.iso-fig svg { width: 100%; background: #fdfcfa; border: 1px solid var(--line); border-radius: 4px; touch-action: none; }
+.iso-fig figcaption { font-size: 0.8rem; }
+.iso-status { margin: 0.8em 0 0.4em; padding: 8px 12px; border-radius: 4px; font-size: 0.88rem; font-weight: 600; }
+.iso-status.ok { background: #f0f8f4; color: #2b7a57; border: 1px solid #3b8f6b; }
+.iso-status.bad { background: #fdf0ef; color: #a1322b; border: 1px solid #c9473f; }
+.iso-table { font-size: 0.82rem; margin: 0.6em 0; }
+.iso-table td, .iso-table th { padding: 5px 9px; font-family: "SF Mono", Consolas, monospace; }
+.iso-table th { font-family: "Helvetica Neue", Arial, sans-serif; }
+.iso-table td.neg { color: #a1322b; font-weight: 700; }
+.iso-area { font-size: 0.85rem; color: var(--sub); margin: 0.4em 0 0; }
+.iso-widget svg text { font-family: "Helvetica Neue", Arial, sans-serif; }
+
+
+/* ---------- Lecture 10: shape-function explorer ---------- */
+.iso-presets button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.shape-sliders { display: flex; flex-wrap: wrap; gap: 8px 28px; margin: 0.9em 0 0.2em; font-size: 0.85rem; color: var(--sub); }
+.shape-sliders label { display: flex; align-items: center; gap: 8px; }
+.shape-sliders output { display: inline-block; min-width: 3.2em; font-family: "SF Mono", Consolas, monospace; color: var(--ink); }
+.shape-sliders input[type=range] { width: 200px; max-width: 40vw; accent-color: var(--accent); }
+#shapeWidget .iso-table tr.sel td { background: #f4eaf0; font-weight: 700; }
+#shapeWidget .iso-table td.sd { font-size: 0.8rem; line-height: 1.7; vertical-align: middle; }
+
+
+/* ---------- Lecture 10: "one set of weights, two jobs" widget ---------- */
+.iso-widget.tri .iso-fig, .iso-widget.tri .iso-fig:last-child { flex: 1 1 230px; }
+.tri-table td.nd { font-family: "Helvetica Neue", Arial, sans-serif; font-weight: 700; }
+.tri-table td .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: baseline; }
+.tri-table tr.sumrow td { background: #f1ede6; font-weight: 700; border-top: 2px solid var(--accent); }
+
+
+/* ---------- Lecture 10: Jacobian magnifier ---------- */
+.iso-widget.jac .iso-fig, .iso-widget.jac .iso-fig:last-child { flex: 1 1 230px; }
+.iso-widget.jac .iso-fig.jbox { flex: 0 1 210px; font-size: 0.82rem; padding-top: 4px; }
+.jbox .jlabel { font-weight: 700; color: var(--ink); margin: 8px 0 4px; }
+.jbox .jdet { margin: 8px 0; font-family: "SF Mono", Consolas, monospace; font-size: 0.82rem; }
+.jbox .jdet.bad { color: #a1322b; font-weight: 700; }
+table.jmat { border-collapse: separate; border-spacing: 0; border-left: 2px solid #444; border-right: 2px solid #444; border-radius: 4px; margin: 0; }
+table.jmat td { padding: 4px 10px; font-family: "SF Mono", Consolas, monospace; font-size: 0.82rem; text-align: right; border: none; }
+table.jmat td.r1 { color: #7a4a63; background: #f6eef2; font-weight: 700; }
+table.jmat td.r2 { color: #25508f; background: #eaf1fb; font-weight: 700; }
+table.jmat td.g { color: #333; background: #f4f2ee; }
+
+
+/* ---------- Lecture 10: strain assembly line ---------- */
+.iso-widget.belt .iso-fig, .iso-widget.belt .iso-fig:last-child { flex: 1 1 230px; max-width: 340px; }
+.belt-sliders { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px 18px; margin: 0.8em 0 0.4em; font-size: 0.78rem; color: var(--sub); }
+.belt-sliders label { display: flex; align-items: center; gap: 6px; }
+.belt-sliders .nm { font-weight: 700; min-width: 1.6em; }
+.belt-sliders output { font-family: "SF Mono", Consolas, monospace; min-width: 3.1em; color: var(--ink); }
+.belt-sliders input[type=range] { width: 70px; flex: 1 1 60px; accent-color: var(--accent); }
+.belt-flow { margin: 0.6em 0; }
+.belt-stage { border: 1px solid var(--line); border-radius: 6px; background: #fff; padding: 8px 12px 10px; }
+.belt-stage .st-title { font-size: 0.82rem; font-weight: 700; color: var(--ink); margin-bottom: 6px; }
+.belt-stage .st-title .step { display: inline-block; background: var(--accent); color: #fff; border-radius: 10px; padding: 1px 9px; margin-right: 8px; font-size: 0.74rem; }
+.belt-stage .eq { display: flex; align-items: center; gap: 10px; overflow-x: auto; padding: 4px 2px 6px; }
+.belt-stage .blk { flex: 0 0 auto; text-align: center; }
+.belt-stage .cap { font-size: 0.72rem; color: var(--sub); margin-top: 3px; }
+.belt-stage .op { font-size: 1.2rem; color: var(--sub); flex: 0 0 auto; }
+.belt-arrow { text-align: center; color: var(--sub); font-size: 0.78rem; line-height: 1.1; padding: 3px 0; }
+table.bmat { border-collapse: separate; border-spacing: 1px; border-left: 2px solid #444; border-right: 2px solid #444; border-radius: 4px; margin: 0 auto; }
+table.bmat th, table.bmat td { font-family: "SF Mono", Consolas, monospace; font-size: 0.7rem; padding: 2px 5px; text-align: right; border: none; background: #fff; min-width: 2.6em; }
+table.bmat th { font-weight: 700; text-align: center; background: #f4f2ee; }
+table.bmat th.vl { text-align: right; background: transparent; padding-right: 8px; }
+table.bmat td.z { color: #c3beb5; }
+table.bmat td.hl { background: #fbe39a; outline: 1.5px solid #b8862f; color: #222; font-weight: 700; }
+table.bmat td.hl.z { color: #8a6420; }
+table.bmat td.out { cursor: pointer; background: #f1f6ee; font-weight: 700; }
+table.bmat td.out:hover { background: #dcecd3; }
+table.bmat td.out.hl { background: #f2cf62; }
+
+
+/* ---------- Lecture 10: worked-example stepper ---------- */
+.st-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 0.7em; }
+.st-tabs button { font: inherit; font-size: 0.82rem; padding: 7px 14px; border: 1px solid var(--line); background: #f4f2ee; color: var(--sub); border-radius: 6px 6px 0 0; cursor: pointer; }
+.st-tabs button.on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+.st-nav { display: flex; align-items: center; justify-content: space-between; margin-top: 0.9em; font-size: 0.82rem; color: var(--sub); }
+.st-nav button { font: inherit; font-size: 0.82rem; padding: 6px 14px; border: 1px solid var(--accent2); background: #eef4fc; color: #25508f; border-radius: 16px; cursor: pointer; }
+.st-nav button:disabled { opacity: 0.4; cursor: default; }
+.st-frame-title { font-weight: 700; color: var(--ink); margin: 0.2em 0 0.4em; font-size: 0.95rem; }
+.st-note { font-size: 0.84rem; color: var(--sub); margin: 0.6em 0 0; line-height: 1.5; }
+.st-box { flex: 1 1 220px; font-size: 0.82rem; min-width: 0; }
+.st-box .lab { font-weight: 700; margin: 8px 0 3px; color: var(--ink); }
+.st-box .eqline { font-family: "SF Mono", Consolas, monospace; font-size: 0.78rem; line-height: 1.7; }
+.st-pill { display: inline-block; padding: 1px 9px; border-radius: 10px; font-size: 0.74rem; font-weight: 700; margin-left: 6px; }
+.st-pill.ok { background: #e3f3ea; color: #2b7a57; }
+.st-pill.no { background: #fbe4e1; color: #a1322b; }
+.st-gp { display: flex; flex-wrap: wrap; gap: 8px; margin: 0.4em 0 0.6em; }
+.st-gp button { font: inherit; font-size: 0.8rem; padding: 5px 12px; border: 1px solid var(--line); background: #fff; color: var(--sub); border-radius: 14px; cursor: pointer; }
+.st-gp button.on { background: #f4eaf0; border-color: var(--accent); color: var(--accent); font-weight: 700; }
+.st-maps { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; }
+.st-small { text-align: center; font-size: 0.74rem; color: var(--sub); }
+.st-small svg { display: block; margin: 0 auto 2px; }
+.st-chk { list-style: none; margin: 0.4em 0 0; padding: 0; font-size: 0.8rem; }
+.st-chk li { margin: 3px 0; }
+.st-hover { font-family: "SF Mono", Consolas, monospace; font-size: 0.76rem; min-height: 1.4em; color: var(--ink); margin: 4px 0; }
+
+
+/* ---------- FIX #2 / #4: keyboard focus, handles, radio groups, screen-reader helpers ---------- */
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.iso-kbd { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 0.78rem; color: var(--sub); margin: 0 0 0.6em; }
+.iso-handle { cursor: grab; touch-action: none; }
+.iso-handle:active { cursor: grabbing; }
+.iso-btn { cursor: pointer; }
+.iso-presets button[aria-checked="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.st-gp button[aria-checked="true"] { background: #f4eaf0; border-color: var(--accent); color: var(--accent); font-weight: 700; }
+.st-gp button[aria-pressed="true"] { background: #f4eaf0; border-color: var(--accent); color: var(--accent); font-weight: 700; }
+.st-tabs button[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+#stOpts button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+#stBig:focus-visible { outline: 3px solid var(--accent2); outline-offset: 3px; }
+td.out:focus-visible { outline: 3px solid var(--accent2); outline-offset: 1px; }
+/* FIX #4: visible keyboard focus for all interactive controls (focus-visible, so no ring on mouse click) */
+.iso-widget button:focus-visible,
+.iso-presets button:focus-visible,
+.st-tabs button:focus-visible,
+.st-nav button:focus-visible,
+.st-gp button:focus-visible,
+.belt-sliders input:focus-visible,
+.shape-sliders input:focus-visible,
+.iso-handle:focus-visible,
+.toc-link:focus-visible,
+#navToggle:focus-visible {
+  outline: 2px solid var(--accent2);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.iso-handle:focus-visible { outline-width: 3px; }
+/* keep the third panel from stretching to full width when the row wraps */
+.iso-widget.tri .iso-fig, .iso-widget.jac .iso-fig:not(.jbox) { max-width: 380px; }
+
+
+/* ===================== Round 2: touch, stacking, status icons, new widgets features ===================== */
+/* P2: invisible hit circles are only active for coarse pointers (they would overlap neighbouring handles with a mouse) */
+.iso-hit { fill: transparent; stroke: none; pointer-events: none; }
+@media (any-pointer: coarse) { .iso-hit { pointer-events: all; } }
+/* P2: the svg itself never blocks page scrolling; only grabbed handles do (the script also cancels touchstart on them) */
+.iso-widget .iso-fig svg { touch-action: pan-y pinch-zoom; }
+.iso-grab, .iso-handle { touch-action: none; }
+.iso-btn:focus-visible { outline: 3px solid var(--accent2); outline-offset: 2px; }
+/* P2: nudge pad for small screens */
+.iso-nudge { display: none; align-items: center; flex-wrap: wrap; gap: 8px 14px; margin: 0.7em 0; padding: 8px 10px; border: 1px dashed var(--line); border-radius: 6px; font-family: "Helvetica Neue", Arial, sans-serif; font-size: 0.82rem; color: var(--sub); }
+.iso-nudge[hidden] { display: none !important; }
+.iso-nudge select { font: inherit; padding: 6px 8px; margin-left: 6px; max-width: 14em; }
+.iso-nudge .pad { display: inline-flex; gap: 6px; }
+.iso-nudge button { font: inherit; min-width: 44px; min-height: 44px; border: 1px solid var(--accent2); background: #eef4fc; color: #25508f; border-radius: 8px; cursor: pointer; }
+.iso-nudge button:active { background: #dce9f9; }
+.iso-nudge button:focus-visible, .iso-nudge select:focus-visible, .iso-nudge input:focus-visible { outline: 2px solid var(--accent2); outline-offset: 2px; }
+@media (any-pointer: coarse), (max-width: 760px) { .iso-nudge { display: flex; } }
+@media (any-pointer: coarse) {
+  .iso-presets button, .st-tabs button, .st-nav button, .st-gp button, #stOpts button, .iso-widget select { min-height: 44px; }
+  .iso-presets button, .st-gp button { min-width: 44px; padding-left: 14px; padding-right: 14px; }
+  .belt-sliders input[type=range], .shape-sliders input[type=range] { min-height: 44px; }
+  td.out { padding: 10px 12px !important; }
+}
+/* P2: multi-panel widgets stack cleanly on narrow screens */
+@media (max-width: 760px) {
+  .iso-widget .iso-panels { flex-direction: column; align-items: stretch; }
+  .iso-widget .iso-fig, .iso-widget.tri .iso-fig, .iso-widget.jac .iso-fig, .iso-widget.belt .iso-fig, .iso-widget .iso-fig:last-child { flex: 0 0 auto !important; width: 100%; max-width: 520px !important; margin-left: auto; margin-right: auto; }
+  .iso-widget.jac .iso-fig.jbox { max-width: 520px !important; }
+  .iso-widget .st-box { flex: 0 0 auto !important; width: 100%; }
+  .st-maps { flex-direction: column; }
+  .shape-sliders input[type=range], .belt-sliders input[type=range] { width: 100%; max-width: none; }
+  .st-tabs button { flex: 1 1 45%; }
+  .belt-sliders { grid-template-columns: 1fr 1fr; }
+}
+/* P3: status lines carry an icon and a word, never colour alone; a third state for nearly degenerate elements */
+.iso-status::before { font-weight: 800; margin-right: 0.45em; }
+.iso-status.ok::before { content: "\2713"; }
+.iso-status.bad::before { content: "\2717"; }
+.iso-presets button[aria-checked="true"]::before, .st-gp button[aria-pressed="true"]::before, #stOpts button[aria-pressed="true"]::before { content: "\2713\00a0"; }
+.st-gp button:disabled, .st-nav button:disabled { opacity: 0.45; cursor: default; }
+/* P4 / secondary */
+.belt-compare { border: 2px solid var(--accent); border-radius: 8px; background: #fffdf8; padding: 10px 14px; margin: 0.8em 0; font-family: "Helvetica Neue", Arial, sans-serif; font-size: 0.9rem; }
+.belt-compare .belt-cmp-head { margin-bottom: 6px; }
+.belt-compare .belt-cmp-hint { margin: 0; color: var(--sub); }
+table.bmat.cmp th, table.bmat.cmp td { font-size: 0.85rem; padding: 4px 12px; }
+table.bmat.cmp tr.df td { color: #2b7a57; font-weight: 700; }
+.belt-details { margin: 0.5em 0; }
+.belt-details > summary { cursor: pointer; font-family: "Helvetica Neue", Arial, sans-serif; font-size: 0.8rem; color: var(--sub); padding: 4px 0; }
+.belt-details > summary:focus-visible, .st-snap > summary:focus-visible { outline: 2px solid var(--accent2); outline-offset: 2px; }
+.st-assume { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 0.8rem; color: var(--sub); background: #f6f2ea; border-left: 3px solid var(--accent); padding: 6px 10px; margin: 0 0 0.7em; border-radius: 0 4px 4px 0; }
+.heat-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-family: "Helvetica Neue", Arial, sans-serif; font-size: 0.72rem; color: var(--sub); margin-top: 6px; max-width: 300px; }
+.heat-legend .sw { display: inline-block; width: 16px; height: 16px; border: 1px solid #bbb; vertical-align: middle; margin-right: 4px; }
+.heat-legend .lg-note { flex-basis: 100%; }
+.st-snap { margin-top: 0.8em; font-family: "Helvetica Neue", Arial, sans-serif; font-size: 0.82rem; }
+.st-snap textarea { width: 100%; font-family: "SF Mono", Consolas, monospace; font-size: 0.72rem; margin-top: 6px; box-sizing: border-box; }
+.st-snap button { font: inherit; font-size: 0.82rem; padding: 6px 14px; border: 1px solid var(--accent2); background: #eef4fc; color: #25508f; border-radius: 16px; cursor: pointer; margin-top: 6px; }
+.st-snap button:focus-visible { outline: 2px solid var(--accent2); outline-offset: 2px; }
+
+
+/* Task 5: rotating disclosure arrow on "Check your understanding" prompts (the native marker is hidden so only one arrow shows) */
+details.check-prompt > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+details.check-prompt > summary { list-style: none; }
+details.check-prompt > summary::marker { content: ""; }
+details.check-prompt > summary::-webkit-details-marker { display: none; }
+details.check-prompt > summary::after { content: "\25B6"; font-size: 0.7em; transition: transform 0.2s ease; }
+details.check-prompt[open] > summary::after { transform: rotate(90deg); }
+/* Task 6: clickable rows of the Section 1 comparison table */
+table.interactable tbody tr { cursor: pointer; }
+table.interactable tbody tr:hover td { background: #f4eaf0; }
+table.interactable tbody tr.hl td { background: #fbe39a; font-weight: 700; }
+table.kmatrix.k18 td { padding: 3px 5px; font-size: 0.7rem; }
+.belt-sliders { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+
+/* Lecture 11 additions (widgets only; sidebar and shared styles untouched) */
+.iso-table tr.sel td { background: #f4eaf0; font-weight: 700; }
+.iso-table tr.sumrow td { border-top: 2px solid #999; }
+.iso-table td.neg { color: #2f5d9e; }
+.brk-table td, .ser-table td { text-align: center; }
+#serCanvas, #trCanvas { display: block; margin: 0 auto; }
+#trForms li { margin-bottom: 2px; }
+#brkJ table.jmat { margin-bottom: 6px; }
+</style>
+<!-- FIX #2: without JavaScript the interactive frames would be empty boxes, so hide them; all prose and figures remain. -->
+<noscript><style>.iso-widget, .iso-kbd, #s8-code, #s8-actions, #s8-status, #s8-output, #mj-fallback { display: none !important; }</style></noscript>
+</head>
+
+<body>
+<!-- P3: hatch pattern used (with a dashed outline) to mark invalid elements, so validity never relies on colour alone -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+<pattern id="isoHatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="8" height="8" fill="#fbe3e0"/><line x1="0" y1="0" x2="0" y2="8" stroke="#c9473f" stroke-width="2.4"/></pattern>
+</defs></svg>
+<a href="#top" id="top"></a>
+<button id="navToggle" class="nav-toggle" aria-label="Toggle navigation" aria-expanded="false" aria-controls="sidebar">&#9776; Contents</button>
+<div class="shell">
+  <nav class="sidebar" id="sidebar">
+    <div class="sidebar-head">
+      <p class="course-code">CEE 2333</p>
+      <h1 class="course-title">Fundamentals of the<br />Finite Element Method</h1>
+      <p class="course-author">Prof. Lev Khazanovich</p>
+    </div>
+    <ul class="toc-list">
+<li><a href="00_table_of_contents.html" class="toc-link"><span class="toc-num">TOC</span><span class="toc-text"><span class="toc-title">Table of Contents</span><span class="toc-sub">All lectures</span></span></a></li>
+<li><a href="01_introduction.html" class="toc-link"><span class="toc-num">01</span><span class="toc-text"><span class="toc-title">Introduction</span><span class="toc-sub">Course overview &amp; FEM basics</span></span></a></li>
+<li class="toc-group"><span class="toc-group-label">Part 1 &middot; Mathematical Foundations for FEM</span></li>
+<li><a href="02_vectors_matrices_for_fem.html" class="toc-link"><span class="toc-num">1A</span><span class="toc-text"><span class="toc-title">Vectors and Matrices</span><span class="toc-sub">Linear algebra for FEM</span></span></a></li>
+<li><a href="03_interpolation.html" class="toc-link"><span class="toc-num">2A</span><span class="toc-text"><span class="toc-title">Interpolation and Approximation</span><span class="toc-sub">Shape functions &amp; approximation theory</span></span></a></li>
+<li><a href="04_differentiation_integration.html" class="toc-link"><span class="toc-num">3A</span><span class="toc-text"><span class="toc-title">Differentiation and Integration</span><span class="toc-sub">Numerical calculus for FEM</span></span></a></li>
+<li><div class="toc-link disabled"><span class="toc-num">4A</span><span class="toc-text"><span class="toc-title">Introduction to Python and Colab<span class="toc-soon">Soon</span></span><span class="toc-sub">Coming soon</span></span></div></li>
+<li class="toc-group"><span class="toc-group-label">Part 2 &middot; The Stiffness Method</span></li>
+<li><a href="06_1d_spring_systems.html" class="toc-link"><span class="toc-num">2</span><span class="toc-text"><span class="toc-title">1-D Spring Systems</span><span class="toc-sub">The Direct Stiffness Method</span></span></a></li>
+<li><a href="07_2d_trusses.html" class="toc-link"><span class="toc-num">3</span><span class="toc-text"><span class="toc-title">2-D Trusses</span><span class="toc-sub">Transformations &amp; assembly</span></span></a></li>
+<li><a href="08_2d_frames.html" class="toc-link"><span class="toc-num">4</span><span class="toc-text"><span class="toc-title">2-D Frames</span><span class="toc-sub">Frame elements &amp; assembly</span></span></a></li>
+<li class="toc-group"><span class="toc-group-label">Part 3</span></li>
+<li><a href="09_energy_methods_fe_formulation.html" class="toc-link"><span class="toc-num">5</span><span class="toc-text"><span class="toc-title">Energy Methods and the Finite Element Formulation</span><span class="toc-sub">Minimum potential energy, frame element &amp; Rayleigh&ndash;Ritz</span></span></a></li>
+<li class="toc-group"><span class="toc-group-label">Part 4 &middot; From 1-D/2-D Structures to 3-D Continuum FEM</span></li>
+<li><a href="10_constitutive_relations.html" class="toc-link"><span class="toc-num">6</span><span class="toc-text"><span class="toc-title">Constitutive Relations</span><span class="toc-sub">3-D Hooke&rsquo;s law &rarr; plane stress/strain</span></span></a></li>
+<li><a href="11_3d_continuum_formulation.html" class="toc-link"><span class="toc-num">7</span><span class="toc-text"><span class="toc-title">3-D Continuum Formulation</span><span class="toc-sub">Kinematics, energy principle, element equations</span></span></a></li>
+<li class="toc-group"><span class="toc-group-label">Part 5 &middot; Two-Dimensional Elements</span></li>
+<li><a href="12_2d_elements_cst_bilinear.html" class="toc-link"><span class="toc-num">8</span><span class="toc-text"><span class="toc-title">2-D Elements &mdash; CST &amp; Bilinear</span><span class="toc-sub">Shape functions, stiffness, worked example</span></span></a></li>
+<li><a href="13_isoparametric_element.html" class="toc-link"><span class="toc-num">9</span><span class="toc-text"><span class="toc-title">The Isoparametric Element</span><span class="toc-sub">Natural coordinates, Jacobian, Gauss quadrature</span></span></a></li>
+<li><a href="14_Lagrange_element.html" class="toc-link"><span class="toc-num">10</span><span class="toc-text"><span class="toc-title">The Lagrange Element</span><span class="toc-sub">Nine-node element, 3&times;3 Gauss rule</span></span></a></li>
+<li><a href="15_serendipity_elements.html" class="toc-link active" aria-current="page"><span class="toc-num">11</span><span class="toc-text"><span class="toc-title">Serendipity Elements</span><span class="toc-sub">8-node, transition elements, 3-D brick</span></span></a></li>
+<li><a href="16_strains_stresses.html" class="toc-link"><span class="toc-num">12</span><span class="toc-text"><span class="toc-title">Strains, Stresses and Instabilities</span><span class="toc-sub">Bending, deformation modes, hourglass</span></span></a></li>
+<li><a href="17_bilinear_hourglass_control.html" class="toc-link"><span class="toc-num">13</span><span class="toc-text"><span class="toc-title">Shear Locking and Hourglass Control</span><span class="toc-sub">SRI, stabilization stiffness, cantilever test</span></span></a></li>
+</ul>
+    <p class="sidebar-foot">15-part outline &middot; 13 lectures published</p>
+  </nav>
+  <main class="content" id="content">
+<div id="mj-fallback" hidden style="margin:0 0 1.2em;max-width:780px;padding:8px 12px;border:1px solid #d9a21b;background:#fff6e0;color:#7a4f00;border-radius:4px;font-family:'Helvetica Neue',Arial,sans-serif;font-size:0.85rem;">Math could not be typeset (the MathJax CDN did not load). The equations are shown as raw TeX; the page content is otherwise complete.</div>
+<section class="lecture" id="lec11" aria-labelledby="lec11-marker">
+  <p class="lecture-marker" id="lec11-marker">Lecture 11 &middot; Part 5: Two-Dimensional Elements (with a first look at 3-D)</p>
+
+<div class="page">
+<h1 id="lec11-cee-2333-introduction-to-the-finite-element-method">CEE 2333 — Introduction to the Finite Element Method</h1>
+<h2 id="lec11-lecture-11-serendipity-elements">Lecture 11: Serendipity Elements, Transition Elements and the 3-D Brick</h2>
+<p class="author">Prof. Lev Khazanovich</p>
+<hr/>
+
+<h2 id="lec11-learning-objectives">Learning Objectives</h2>
+<ul>
+<li>Explain why the nine-node Lagrange element is <strong>expensive</strong> and why its <strong>centre node</strong> is inconvenient, and say what a <strong>serendipity</strong> element removes</li>
+<li>Write the eight shape functions of the <strong>8-node serendipity quadrilateral</strong> (four corner functions, four mid-side functions), check their properties, and read them off the polynomial &ldquo;Pascal triangle&rdquo; of <strong>Lagrange vs. serendipity</strong> families</li>
+<li>Reuse the isoparametric pipeline of Lectures 9&ndash;10 for the 8-node element: $[J]$ ($2\times8$ times $8\times2$), $[B]$ ($3\times16$), $[K^e]$ ($16\times16$) and the rank bookkeeping of Gauss rules</li>
+<li>Explain why elements of <strong>different polynomial degree</strong> cannot simply share a side, and build a <strong>transition serendipity element</strong> (corners plus any subset of mid-side nodes) with the three-step algorithm</li>
+<li>Introduce the <strong>three-dimensional hexahedral (brick) isoparametric element</strong>: its eight trilinear shape functions, the $3\times3$ Jacobian, $[B]=[B_1][B_2][B_3]$ of size $6\times24$, the 3-D Hooke matrix, and $[K^e]$ ($24\times24$) by $2\times2\times2$ Gauss quadrature</li>
+</ul>
+<p><em>Outline:</em> (1) Picking up from Lecture 10 &middot; (2) The 8-node serendipity element &middot; (3) Lagrange vs. serendipity &middot; (4) Isoparametric formulation, stiffness and integration &middot; (5) Transition serendipity elements &middot; (6) The 8-node hexahedral element &middot; (7) Algorithm and code &middot; (8) Conclusion and key takeaways.</p>
+
+<div class="callout">
+<p><strong>What is reused and what is new</strong></p>
+<ul>
+<li><strong>Reused, not re-derived:</strong> the parent square $[-1,1]^2$, the isoparametric map $x=\sum N_ix_i$, $[J]$ and $[J]^{-1}$, the factorization $[B]=[B_1][B_2][B_3]$, Gauss quadrature and the rank check from Lectures 9&ndash;10; $[D]$ and the 3-D continuum formulation of Lectures 6&ndash;7.</li>
+<li><strong>New in this lecture:</strong> shape functions that are <em>not</em> tensor products (no centre node); a systematic way to mix linear and quadratic sides in one element; and the first <em>three-dimensional</em> isoparametric element, where every matrix grows by one dimension.</li>
+</ul>
+</div>
+<hr/>
+
+<h2 id="lec11-1-picking-up-from-lecture-10">1. Picking Up From Lecture 10</h2>
+<p>Lecture 10 raised the polynomial degree by multiplying one-dimensional Lagrange polynomials. The nine-node Lagrange quadrilateral has shape functions $N_i=L_{\xi_i}(\xi)\,L_{\eta_i}(\eta)$. Written with the notation $L_{0,2}(s)=-\tfrac12(1-s)\,s$ and $L_{2,2}(s)=\tfrac12(1+s)\,s$ for the polynomials that equal one at $s=-1$ and $s=+1$, the four corner functions are</p>
+$$
+N_1=L_{0,2}(\xi)L_{0,2}(\eta)=\tfrac14(1-\xi)\xi\,(1-\eta)\eta,\qquad
+N_2=L_{2,2}(\xi)L_{0,2}(\eta)=-\tfrac14(1+\xi)\xi\,(1-\eta)\eta,
+$$
+$$
+N_3=L_{2,2}(\xi)L_{2,2}(\eta)=\tfrac14(1+\xi)\xi\,(1+\eta)\eta,\qquad
+N_4=L_{0,2}(\xi)L_{2,2}(\eta)=-\tfrac14(1-\xi)\xi\,(1+\eta)\eta .
+$$
+<p>These are the same functions as in Lecture 10 (there written $\tfrac14\xi\eta(\xi\mp1)(\eta\mp1)$ and so on). The element works well, but it has two drawbacks:</p>
+<ul>
+<li><strong>It is computationally expensive.</strong> Every element carries nine nodes, 18 DOFs and an $18\times18$ matrix, and the centre node exists in no neighbouring element, so it adds unknowns that nothing else shares.</li>
+<li><strong>The centre node is inconvenient.</strong> On a curved or distorted element the node is normally placed at the centroid, and the centroid has to be computed before the mesh can even be described. A badly placed centre node also degrades $\det[J]$ (Lecture 10, &ldquo;centre node dragged off&rdquo;).</li>
+</ul>
+<p>The question of this lecture: <strong>can we keep the quadratic sides and drop the centre node?</strong> The answer is yes, at almost no loss in accuracy for the bending test of Lecture 10 (plane stress, $\nu=0.3$, one rectangular element of half-width $a$ and half-height $b$, loaded with the exact pure-bending displacement at its nodes):</p>
+<div class="table-scroll">
+<table class="map-table">
+<thead><tr><th>Shape of the element</th><th>4-node bilinear ($2\times2$ rule): energy / exact</th><th>8-node serendipity ($3\times3$ rule): energy / exact</th><th>9-node Lagrange ($3\times3$ rule): energy / exact</th></tr></thead>
+<tbody>
+<tr><td>$a/b=1$ (square)</td><td>1.484</td><td>1.000</td><td>1.000</td></tr>
+<tr><td>$a/b=2$</td><td>2.637</td><td>1.000</td><td>1.000</td></tr>
+<tr><td>$a/b=4$ (slender)</td><td>7.253</td><td>1.000</td><td>1.000</td></tr>
+</tbody>
+</table>
+</div>
+<p>The eight-node element is exact for pure bending on a rectangle, because the bending field contains only the terms $xy,\,x^2,\,y^2$ and all of them lie in the span of its shape functions (Section 2). The extra centre node of the Lagrange element buys nothing here.</p>
+<div class="callout">
+<p><strong>The plan in one line:</strong> build quadratic shape functions that need only <em>corner and mid-side</em> nodes (serendipity family) &rarr; show how to switch some sides back to linear so that elements of different degree can be joined (transition elements) &rarr; apply the same ideas in three dimensions (the brick).</p>
+</div>
+
+<hr/>
+<h2 id="lec11-2-eight-node-serendipity">2. The 8-Node Serendipity Element</h2>
+<p>Keep the parent square $(\xi,\eta)\in[-1,1]^2$ and the node numbering of Lecture 10 <em>without the centre node</em>: <strong>corners 1&ndash;4</strong> counterclockwise from the lower left, then <strong>mid-sides 5&ndash;8</strong> (bottom, right, top, left).</p>
+<div class="table-scroll">
+<table class="map-table">
+<thead><tr><th>Node</th><th>Type</th><th>Side</th><th>$\xi_i$</th><th>$\eta_i$</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>corner</td><td>&mdash;</td><td>$-1$</td><td>$-1$</td></tr>
+<tr><td>2</td><td>corner</td><td>&mdash;</td><td>$+1$</td><td>$-1$</td></tr>
+<tr><td>3</td><td>corner</td><td>&mdash;</td><td>$+1$</td><td>$+1$</td></tr>
+<tr><td>4</td><td>corner</td><td>&mdash;</td><td>$-1$</td><td>$+1$</td></tr>
+<tr><td>5</td><td>mid-side</td><td>bottom ($\eta=-1$)</td><td>$0$</td><td>$-1$</td></tr>
+<tr><td>6</td><td>mid-side</td><td>right ($\xi=+1$)</td><td>$+1$</td><td>$0$</td></tr>
+<tr><td>7</td><td>mid-side</td><td>top ($\eta=+1$)</td><td>$0$</td><td>$+1$</td></tr>
+<tr><td>8</td><td>mid-side</td><td>left ($\xi=-1$)</td><td>$-1$</td><td>$0$</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3 id="lec11-corner-functions">Corner nodes</h3>
+$$
+\begin{aligned}
+N_1(\xi,\eta)&=-\tfrac14(1-\xi)(1-\eta)(\xi+\eta+1), & N_2(\xi,\eta)&=-\tfrac14(1+\xi)(1-\eta)(\eta-\xi+1),\\
+N_3(\xi,\eta)&=\tfrac14(1+\xi)(1+\eta)(\xi+\eta-1), & N_4(\xi,\eta)&=\tfrac14(1-\xi)(1+\eta)(\eta-\xi-1).
+\end{aligned}
+$$
+<p>All four follow one pattern, $N_i=\tfrac14(1+\xi_i\xi)(1+\eta_i\eta)(\xi_i\xi+\eta_i\eta-1)$ for $i=1,\dots,4$. Read $N_1$ as a recipe: the factor $(1-\xi)(1-\eta)$ is zero on the two sides $\xi=1$ and $\eta=1$, which removes nodes 2, 3, 4, 6, 7; the remaining nodes 5 $(0,-1)$ and 8 $(-1,0)$ both lie on the straight line $\xi+\eta+1=0$, so the third factor removes them; the constant $-\tfrac14$ makes $N_1(-1,-1)=-\tfrac14\cdot2\cdot2\cdot(-1)=1$.</p>
+
+<h3 id="lec11-midside-functions">Mid-side nodes</h3>
+$$
+\begin{aligned}
+N_5(\xi,\eta)&=\tfrac12(1-\xi^2)(1-\eta), & N_6(\xi,\eta)&=\tfrac12(1+\xi)(1-\eta^2),\\
+N_7(\xi,\eta)&=\tfrac12(1-\xi^2)(1+\eta), & N_8(\xi,\eta)&=\tfrac12(1-\xi)(1-\eta^2).
+\end{aligned}
+$$
+<p>Each is a <em>parabola</em> along its own side (the factor $1-\xi^2$ or $1-\eta^2$) times a <em>linear</em> function across the element that equals 1 on that side and 0 on the opposite side.</p>
+
+<p>Properties worth checking, since everything later relies on them:</p>
+<ul>
+<li><strong>Kronecker delta:</strong> $N_i(\xi_j,\eta_j)=\delta_{ij}$ for the eight nodes.</li>
+<li><strong>Partition of unity:</strong> $\sum_{i=1}^{8}N_i=1$, and $\sum_i\xi_iN_i=\xi$, $\sum_i\eta_iN_i=\eta$, so rigid translations and linear fields are reproduced exactly.</li>
+<li><strong>Quadratic along every side.</strong> On $\eta=-1$ only $N_1,N_2,N_5$ are nonzero, and they reduce to the one-dimensional quadratic Lagrange polynomials in $\xi$. The displacement along a side depends only on the three nodes of that side, so two neighbours that share those three nodes agree along the shared side.</li>
+<li><strong>Completeness.</strong> The eight functions span $\{1,\ \xi,\ \eta,\ \xi^2,\ \xi\eta,\ \eta^2,\ \xi^2\eta,\ \xi\eta^2\}$: a complete quadratic plus two cubic terms. The term $\xi^2\eta^2$ of the Lagrange element is <em>missing</em>; that is the price of having no centre node.</li>
+<li><strong>Negative values.</strong> The corner functions are negative inside the element (minimum $-\tfrac14$, at the centre), the mid-side functions never are. At the centre the weights are $-\tfrac14$ for each corner and $+\tfrac12$ for each mid-side node, and $4(-\tfrac14)+4(\tfrac12)=1$.</li>
+</ul>
+
+<h3 id="lec11-ser-explorer">Interactive: shape-function explorer</h3>
+<p>Pick a node and compare the serendipity and the Lagrange family. Click or drag inside the square, or use the sliders, to move the probe point; the table lists all weights there and their sum. Note how the corner functions of the serendipity element have a deeper, wider negative region, how every mid-side function stays between 0 and 1, and that the Lagrange family needs the ninth function $N_9=(1-\xi^2)(1-\eta^2)$.</p>
+
+<div class="iso-widget" id="serWidget">
+  <p class="iso-kbd" id="serKbdHint">Keyboard: use the &xi; and &eta; sliders to move the probe point; Tab to the node buttons to change the function shown.</p>
+  <div class="iso-presets" id="serType" role="group" aria-label="Choose element family">
+    <button type="button" data-t="ser" class="active" aria-pressed="true">8-node serendipity</button>
+    <button type="button" data-t="lag" aria-pressed="false">9-node Lagrange</button>
+  </div>
+  <div class="iso-presets" id="serNodes" role="group" aria-label="Choose the shape function to display"></div>
+  <div class="iso-panels">
+    <figure class="iso-fig" style="flex:1 1 300px;max-width:400px">
+      <canvas id="serCanvas" aria-describedby="serKbdHint" width="380" height="380" style="width:100%;height:auto;touch-action:none;cursor:crosshair;border:1px solid var(--line);border-radius:4px;background:#fff" role="img" aria-label="Contour plot of the selected shape function over the parent square, with the nodes marked and a probe cross"></canvas>
+      <figcaption>Selected shape function on the parent square (nodes are the circles; the cross is the probe point)</figcaption>
+    </figure>
+    <div class="iso-fig" style="flex:1 1 260px">
+      <div class="shape-sliders">
+        <label>&xi; = <output id="serXiOut" aria-live="off">0.30</output>
+          <input type="range" id="serXi" min="-1" max="1" step="0.05" value="0.3" aria-label="Probe xi coordinate"></label>
+        <label>&eta; = <output id="serEtaOut" aria-live="off">-0.40</output>
+          <input type="range" id="serEta" min="-1" max="1" step="0.05" value="-0.4" aria-label="Probe eta coordinate"></label>
+      </div>
+      <div class="table-scroll">
+        <table class="iso-table ser-table">
+          <thead><tr><th>Node</th><th>Type</th><th>(&xi;<sub>i</sub>, &eta;<sub>i</sub>)</th><th>N<sub>i</sub> at probe</th></tr></thead>
+          <tbody id="serRows"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="iso-readout">
+    <div id="serStatus" class="iso-status ok" role="status" aria-live="polite" aria-atomic="true"></div>
+    <p class="iso-area" id="serNote" aria-live="off"></p>
+  </div>
+</div>
+
+<details class="check-prompt">
+<summary>Check your understanding: why can we not simply drop $N_9$ from the Lagrange set and keep the other eight?</summary>
+<div class="answer">
+<p>Without $N_9$ the remaining eight Lagrange functions no longer add up to 1: at the centre they sum to $1-N_9(0,0)=0$, so a rigid translation would produce spurious strain. Serendipity functions are <em>re-derived</em> for eight nodes so that the Kronecker property <em>and</em> the partition of unity hold with those eight alone; the price is that $\xi^2\eta^2$ leaves the span.</p>
+</div>
+</details>
+
+<hr/>
+<h2 id="lec11-3-lagrange-vs-serendipity">3. Lagrange vs. Serendipity</h2>
+<p>A polynomial space for a quadrilateral is a set of monomials $\xi^i\eta^j$. Arrange them in <strong>Pascal&rsquo;s triangle</strong>, one row per total degree $i+j$. A <em>Lagrange</em> (tensor-product) element of order $p$ keeps every monomial with $i\le p$ and $j\le p$, which is $(p+1)^2$ terms and needs interior nodes once $p\ge2$. A <em>serendipity</em> element keeps only the monomials of total degree $\le p$ plus the few higher ones that the nodes on the boundary can fix, and it needs <em>no interior nodes</em>.</p>
+<figure><svg viewBox="0 0 700 440" role="img" aria-label="Pascal triangle of the monomials xi^i eta^j, rows by total degree. Colours and outline styles show which monomials belong to the bilinear, quadratic serendipity, cubic serendipity and Lagrange-only sets." style="max-width:700px;width:100%;background:#fdfcfa;border:1px solid #e4e0da;border-radius:4px;font-family:Helvetica,Arial,sans-serif">
+<text x="12" y="39" font-size="12" fill="#666">constant</text>
+<rect x="316.0" y="18" width="68" height="32" rx="6" fill="#e3efe6" stroke="#2b7a57" stroke-width="1.8" />
+<text x="350.0" y="39" font-size="15" text-anchor="middle" fill="#1e2430">1</text>
+<text x="12" y="91" font-size="12" fill="#666">linear</text>
+<rect x="273.0" y="70" width="68" height="32" rx="6" fill="#e3efe6" stroke="#2b7a57" stroke-width="1.8" />
+<text x="307.0" y="91" font-size="15" text-anchor="middle" fill="#1e2430">ξ</text>
+<rect x="359.0" y="70" width="68" height="32" rx="6" fill="#e3efe6" stroke="#2b7a57" stroke-width="1.8" />
+<text x="393.0" y="91" font-size="15" text-anchor="middle" fill="#1e2430">η</text>
+<text x="12" y="143" font-size="12" fill="#666">quadratic</text>
+<rect x="230.0" y="122" width="68" height="32" rx="6" fill="#f0e3ea" stroke="#7a4a63" stroke-width="1.8" />
+<text x="264.0" y="143" font-size="15" text-anchor="middle" fill="#1e2430">ξ²</text>
+<rect x="316.0" y="122" width="68" height="32" rx="6" fill="#e3efe6" stroke="#2b7a57" stroke-width="1.8" />
+<text x="350.0" y="143" font-size="15" text-anchor="middle" fill="#1e2430">ξη</text>
+<rect x="402.0" y="122" width="68" height="32" rx="6" fill="#f0e3ea" stroke="#7a4a63" stroke-width="1.8" />
+<text x="436.0" y="143" font-size="15" text-anchor="middle" fill="#1e2430">η²</text>
+<text x="12" y="195" font-size="12" fill="#666">cubic</text>
+<rect x="187.0" y="174" width="68" height="32" rx="6" fill="#e1ebf8" stroke="#3b7dd8" stroke-width="1.8" />
+<text x="221.0" y="195" font-size="15" text-anchor="middle" fill="#1e2430">ξ³</text>
+<rect x="273.0" y="174" width="68" height="32" rx="6" fill="#f0e3ea" stroke="#7a4a63" stroke-width="1.8" />
+<text x="307.0" y="195" font-size="15" text-anchor="middle" fill="#1e2430">ξ²η</text>
+<rect x="359.0" y="174" width="68" height="32" rx="6" fill="#f0e3ea" stroke="#7a4a63" stroke-width="1.8" />
+<text x="393.0" y="195" font-size="15" text-anchor="middle" fill="#1e2430">ξη²</text>
+<rect x="445.0" y="174" width="68" height="32" rx="6" fill="#e1ebf8" stroke="#3b7dd8" stroke-width="1.8" />
+<text x="479.0" y="195" font-size="15" text-anchor="middle" fill="#1e2430">η³</text>
+<text x="12" y="247" font-size="12" fill="#666">quartic</text>
+<text x="178.0" y="247" font-size="14" text-anchor="middle" fill="#bbb">ξ⁴</text>
+<rect x="230.0" y="226" width="68" height="32" rx="6" fill="#e1ebf8" stroke="#3b7dd8" stroke-width="1.8" />
+<text x="264.0" y="247" font-size="15" text-anchor="middle" fill="#1e2430">ξ³η</text>
+<rect x="316.0" y="226" width="68" height="32" rx="6" fill="#ffffff" stroke="#444" stroke-width="1.8" stroke-dasharray="5 3"/>
+<text x="350.0" y="247" font-size="15" text-anchor="middle" fill="#1e2430">ξ²η²</text>
+<rect x="402.0" y="226" width="68" height="32" rx="6" fill="#e1ebf8" stroke="#3b7dd8" stroke-width="1.8" />
+<text x="436.0" y="247" font-size="15" text-anchor="middle" fill="#1e2430">ξη³</text>
+<text x="522.0" y="247" font-size="14" text-anchor="middle" fill="#bbb">η⁴</text>
+<text x="12" y="299" font-size="12" fill="#666">quintic</text>
+<text x="135.0" y="299" font-size="14" text-anchor="middle" fill="#bbb">ξ⁵</text>
+<text x="221.0" y="299" font-size="14" text-anchor="middle" fill="#bbb">ξ⁴η</text>
+<rect x="273.0" y="278" width="68" height="32" rx="6" fill="#ffffff" stroke="#444" stroke-width="1.8" stroke-dasharray="5 3"/>
+<text x="307.0" y="299" font-size="15" text-anchor="middle" fill="#1e2430">ξ³η²</text>
+<rect x="359.0" y="278" width="68" height="32" rx="6" fill="#ffffff" stroke="#444" stroke-width="1.8" stroke-dasharray="5 3"/>
+<text x="393.0" y="299" font-size="15" text-anchor="middle" fill="#1e2430">ξ²η³</text>
+<text x="479.0" y="299" font-size="14" text-anchor="middle" fill="#bbb">ξη⁴</text>
+<text x="565.0" y="299" font-size="14" text-anchor="middle" fill="#bbb">η⁵</text>
+<text x="12" y="351" font-size="12" fill="#666">sextic</text>
+<text x="92.0" y="351" font-size="14" text-anchor="middle" fill="#bbb">ξ⁶</text>
+<text x="178.0" y="351" font-size="14" text-anchor="middle" fill="#bbb">ξ⁵η</text>
+<text x="264.0" y="351" font-size="14" text-anchor="middle" fill="#bbb">ξ⁴η²</text>
+<rect x="316.0" y="330" width="68" height="32" rx="6" fill="#ffffff" stroke="#444" stroke-width="1.8" stroke-dasharray="5 3"/>
+<text x="350.0" y="351" font-size="15" text-anchor="middle" fill="#1e2430">ξ³η³</text>
+<text x="436.0" y="351" font-size="14" text-anchor="middle" fill="#bbb">ξ²η⁴</text>
+<text x="522.0" y="351" font-size="14" text-anchor="middle" fill="#bbb">ξη⁵</text>
+<text x="608.0" y="351" font-size="14" text-anchor="middle" fill="#bbb">η⁶</text>
+<rect x="20" y="366" width="26" height="18" rx="4" fill="#e3efe6" stroke="#2b7a57" stroke-width="1.8" /><text x="54" y="380" font-size="12.5" fill="#333">bilinear (4 terms)</text>
+<rect x="360" y="366" width="26" height="18" rx="4" fill="#f0e3ea" stroke="#7a4a63" stroke-width="1.8" /><text x="394" y="380" font-size="12.5" fill="#333">+ quadratic serendipity (8 terms)</text>
+<rect x="20" y="392" width="26" height="18" rx="4" fill="#e1ebf8" stroke="#3b7dd8" stroke-width="1.8" /><text x="54" y="406" font-size="12.5" fill="#333">+ cubic serendipity (12 terms)</text>
+<rect x="360" y="392" width="26" height="18" rx="4" fill="#ffffff" stroke="#444" stroke-width="1.8" stroke-dasharray="5 3"/><text x="394" y="406" font-size="12.5" fill="#333">Lagrange only (9 or 16 terms)</text>
+</svg><figcaption>Monomials &xi;<sup>i</sup>&eta;<sup>j</sup> by total degree. Quadratic serendipity = green and plum (8 terms); quadratic Lagrange adds the dashed &xi;&sup2;&eta;&sup2; (9 terms). Cubic serendipity adds the blue terms (12); bicubic Lagrange adds the four dashed terms to those 12 (16). Grey monomials belong to neither family.</figcaption></figure>
+<div class="table-scroll">
+<table class="map-table">
+<thead><tr><th>Order</th><th>Lagrange: nodes</th><th>Serendipity: nodes</th><th>Terms kept by serendipity</th><th>Terms only in Lagrange</th></tr></thead>
+<tbody>
+<tr><td>Linear</td><td>4</td><td>4 (the same element)</td><td>$1,\xi,\eta,\xi\eta$</td><td>&mdash;</td></tr>
+<tr><td>Quadratic</td><td>9</td><td>8</td><td>complete degree 2, plus $\xi^2\eta,\ \xi\eta^2$</td><td>$\xi^2\eta^2$</td></tr>
+<tr><td>Cubic</td><td>16</td><td>12</td><td>complete degree 3, plus $\xi^3\eta,\ \xi\eta^3$</td><td>$\xi^2\eta^2,\ \xi^3\eta^2,\ \xi^2\eta^3,\ \xi^3\eta^3$</td></tr>
+</tbody>
+</table>
+</div>
+<p>What matters for accuracy is the <strong>complete</strong> degree: both quadratic elements contain every polynomial of degree $\le2$, so on a mesh of parallelograms both converge at the same rate. The extra $\xi^2\eta^2$ term has degree 4 and does not raise the complete degree. The 8-node element therefore delivers the quadratic accuracy of the 9-node element with one node (two DOFs) fewer. On a structured mesh of $N\times N$ quadratic elements the counts are $(2N+1)^2$ nodes for Lagrange against $(2N+1)^2-N^2$ for serendipity; for $N=10$ that is 441 against 341, about 23&nbsp;% fewer nodes and DOFs.</p>
+<div class="callout">
+<p><strong>A caveat about general quadrilaterals.</strong> On a straight-sided quadrilateral that is <em>not</em> a parallelogram the map $x(\xi,\eta)$ contains a $\xi\eta$ term, so a field such as $x^2$ contains $\xi^2\eta^2$. The Lagrange element can still represent it; the serendipity element cannot and only approximates it (convergence is preserved, the leading error differs). Both families are used in practice; the choice is the subject of the practical-considerations lecture.</p>
+</div>
+<p>The same two families exist in three dimensions. This lecture stops at the 8-node brick (Section 6); for orientation, the quadratic members are:</p>
+<div class="table-scroll">
+<table class="map-table">
+<thead><tr><th>Element (3-D)</th><th>Nodes</th><th>DOFs ($3$ per node)</th><th>$[K^e]$ size</th></tr></thead>
+<tbody>
+<tr><td>Trilinear brick (Section 6)</td><td>8</td><td>24</td><td>$24\times24$</td></tr>
+<tr><td>Quadratic serendipity brick (corners + 12 edge nodes)</td><td>20</td><td>60</td><td>$60\times60$</td></tr>
+<tr><td>Quadratic Lagrange brick (adds 6 face nodes and 1 centre node)</td><td>27</td><td>81</td><td>$81\times81$</td></tr>
+</tbody>
+</table>
+</div>
+<p>The saving from dropping interior nodes is even more striking in 3-D: 20 against 27 nodes, an element matrix with $3600$ rather than $6561$ entries.</p>
+
+<hr/>
+<h2 id="lec11-4-isoparametric-serendipity">4. Isoparametric Formulation, Stiffness and Integration</h2>
+<p>Nothing conceptually new is needed. Use the <em>same</em> eight functions for geometry and displacement:</p>
+$$
+x=\sum_{i=1}^{8}N_i(\xi,\eta)\,x_i,\qquad y=\sum_{i=1}^{8}N_i(\xi,\eta)\,y_i,\qquad u=\sum_{i=1}^{8}N_i\,u_i,\qquad v=\sum_{i=1}^{8}N_i\,v_i .
+$$
+<p>Each side is now a parabola through its three nodes, and the mid-node must stay in the <strong>middle half</strong> of its side (Lecture 10); with mid-nodes at the side midpoints the sides are straight. The pipeline of Lecture 10 carries over with $9\to8$:</p>
+<div class="table-scroll">
+<table class="map-table">
+<thead><tr><th>Quantity</th><th>9-node Lagrange (Lecture 10)</th><th>8-node serendipity</th></tr></thead>
+<tbody>
+<tr><td>DOF vector $\{u^e\}$</td><td>$\{u_1,v_1,\dots,u_9,v_9\}^T$ (18)</td><td>$\{u_1,v_1,\dots,u_8,v_8\}^T$ (16)</td></tr>
+<tr><td>Shape-derivative matrix</td><td>$2\times9$</td><td>$2\times8$</td></tr>
+<tr><td>$[J]=[N_{,\xi\eta}][X]$</td><td>$(2\times9)(9\times2)$</td><td>$(2\times8)(8\times2)$</td></tr>
+<tr><td>$[B]=[B_1][B_2][B_3]$</td><td>$(3\times4)(4\times4)(4\times18)$</td><td>$(3\times4)(4\times4)(4\times16)$</td></tr>
+<tr><td>$[K^e]=t\sum W_p[B]^T[D][B]\det[J]$</td><td>$18\times18$, $3\times3$ rule</td><td>$16\times16$, $3\times3$ rule</td></tr>
+<tr><td>Rank with the $3\times3$ rule</td><td>$18-3=15$</td><td>$16-3=13$</td></tr>
+<tr><td>Rank with the $2\times2$ rule</td><td>12 (three spurious modes)</td><td>12 (one spurious mode)</td></tr>
+</tbody>
+</table>
+</div>
+<p>The ranks in the last two rows were computed for the parallelogram of Lecture 9 (Section 7 reproduces them). The shape derivatives are needed for $[J]$ and $[B_3]$; for the corner nodes ($i=1,\dots,4$) and mid-side nodes they are</p>
+$$
+\begin{aligned}
+N_{i,\xi}&=\tfrac14\xi_i(1+\eta_i\eta)(2\xi_i\xi+\eta_i\eta), & N_{i,\eta}&=\tfrac14\eta_i(1+\xi_i\xi)(\xi_i\xi+2\eta_i\eta) &&(i=1,\dots,4),\\
+N_{i,\xi}&=-\xi(1+\eta_i\eta), & N_{i,\eta}&=\tfrac12\eta_i(1-\xi^2) &&(i=5,7),\\
+N_{i,\xi}&=\tfrac12\xi_i(1-\eta^2), & N_{i,\eta}&=-\eta(1+\xi_i\xi) &&(i=6,8).
+\end{aligned}
+$$
+<div class="callout">
+<p><strong>Why $2\times2$ is not enough, in one line.</strong> A $2\times2$ rule samples four points, and each gives three independent strain components, so it can constrain at most $4\times3=12$ of the 13 non-rigid modes of the 8-node element. One mode survives with zero strain energy. Use the full $3\times3$ rule unless you know what you are doing.</p>
+</div>
+
+<hr/>
+<h2 id="lec11-5-transition-elements">5. Transition Serendipity Elements</h2>
+<p>A real mesh is often <strong>graded</strong>: small elements where the solution changes quickly, large elements elsewhere. Suppose a quadratic element (mid-side node on every side) sits next to a four-node element. Along their shared side the quadratic element deforms as a <em>parabola</em> through three nodes, the four-node element as a <em>straight line</em> through two. Unless the mid-node happens to sit exactly on the line, the two edges separate (gap) or interpenetrate (overlap). The displacement field is no longer continuous across the interface, and <strong>convergence issues arise when connecting elements with different polynomial degrees</strong>. The cure is a <strong>transitional element</strong>: a four-node element that is given a mid-side node on exactly those sides that touch a quadratic neighbour.</p>
+
+<h3 id="lec11-edge-demo">Interactive: why the interface needs a mid-node</h3>
+<p>Two elements share a vertical interface. The two end nodes of the interface move by $u_1=0$ and $u_2=0.20$; drag the mid-node of the right element. In <em>4-node</em> mode the left element has no mid-node, so its edge stays straight and a gap (or overlap) opens whenever the mid-node value differs from the average of the end values. In <em>transition</em> mode the left element has its own mid-node on the interface, tied to the same degree of freedom, and the two edges coincide for every value.</p>
+<div class="iso-widget" id="edgeWidget">
+  <div class="iso-presets" id="edgeMode" role="group" aria-label="Left element type">
+    <button type="button" data-m="plain" class="active" aria-pressed="true">Left: plain 4-node element</button>
+    <button type="button" data-m="trans" aria-pressed="false">Left: transition element (mid-node on the interface)</button>
+  </div>
+  <div class="shape-sliders">
+    <label>mid-node displacement u<sub>m</sub> = <output id="edgeUmOut" aria-live="off">0.10</output>
+      <input type="range" id="edgeUm" min="-0.1" max="0.4" step="0.01" value="0.1" aria-label="Mid-node displacement of the right element"></label>
+  </div>
+  <div class="iso-panels">
+    <figure class="iso-fig" style="flex:1 1 100%">
+      <svg id="edgeSvg" viewBox="0 0 600 320" role="img" aria-label="Two elements sharing a vertical interface. The right element&#39;s edge is a parabola; the left element&#39;s edge is straight unless it has a mid-node. A hatched region marks any gap or overlap." style="max-width:620px;width:100%;background:#fdfcfa;border:1px solid #e4e0da;border-radius:4px"></svg>
+      <figcaption>Interface between two elements (displacements are drawn greatly exaggerated; dashed outlines are the undeformed elements)</figcaption>
+    </figure>
+  </div>
+  <div class="iso-readout">
+    <div id="edgeStatus" class="iso-status ok" role="status" aria-live="polite" aria-atomic="true"></div>
+    <p class="iso-area" id="edgeNote" aria-live="off"></p>
+  </div>
+</div>
+
+<h3 id="lec11-three-steps">The three-step construction</h3>
+<p>Let the element have the four corner nodes and any chosen subset of mid-side nodes. The shape functions are built in three steps.</p>
+<div class="algorithm">
+<p><strong>Transition serendipity shape functions</strong></p>
+<ol>
+<li><strong>Corners first.</strong> Start from the nodes at the vertices and obtain the shape functions as if the element had <em>only</em> these nodes: the bilinear functions
+$$N_1=\tfrac14(1-\xi)(1-\eta),\quad N_2=\tfrac14(1+\xi)(1-\eta),\quad N_3=\tfrac14(1+\xi)(1+\eta),\quad N_4=\tfrac14(1-\xi)(1+\eta).$$</li>
+<li><strong>Add one side node and give it a shape function.</strong> The function is a parabola along its side times a linear factor across the element, exactly as in Section 2, e.g. for the node at the middle of the bottom side
+$$N_5(\xi,\eta)=\tfrac12(\eta-1)(\xi-1)(\xi+1)=\tfrac12(\eta-1)(\xi^2-1).$$</li>
+<li><strong>Correct the other functions.</strong> Every function that is <em>not zero</em> at the location of the new node would otherwise violate the Kronecker property there. If $N_j$ has the value $N_j(\xi_k,\eta_k)$ at the new node $k$, replace $N_j:=N_j-N_j(\xi_k,\eta_k)\,N_k$.</li>
+</ol>
+<p>Repeat steps 2 and 3 for every further side node.</p>
+</div>
+<p>For a bottom-side node at $(\xi,\eta)=(0,-1)$ the bilinear functions $N_1$ and $N_2$ both equal $\tfrac12$, and $N_3,N_4$ vanish. Step 3 therefore reads
+$$N_1:=N_1-\tfrac12N_5,\qquad N_2:=N_2-\tfrac12N_5,$$
+which gives
+$$N_1=\tfrac14(1-\xi)(1-\eta)-\tfrac14(\eta-1)(\xi^2-1),\qquad N_2=\tfrac14(1+\xi)(1-\eta)-\tfrac14(\eta-1)(\xi^2-1).$$
+The rule is general: <strong>each corner gives up one half of every side function that sits on one of the two sides meeting at that corner</strong>, because the bilinear corner function equals $\tfrac12$ at the midpoint of each adjacent side. As in Section 2, every side node that is present must stay in the <strong>middle half</strong> of its side: the restriction does not disappear when only some sides are quadratic, since that side is still a parabola.</p>
+
+<div class="example">
+<p class="example-label">Example</p>
+<p><strong>A five-node and then a six-node element.</strong> Add the bottom-side node and then the left-side node, numbering them in the order in which they are added: <strong>node 5 at $(0,-1)$ and node 6 at $(-1,0)$</strong>. (In the full eight-node numbering of Section 2 these are nodes 5 and 8.)</p>
+<p><em>Step 2 for node 6:</em> $N_6(\xi,\eta)=\tfrac12(\xi-1)(\eta^2-1)$. <em>Step 3 for node 6:</em> the corners that are nonzero at $(-1,0)$ are $N_1$ and $N_4$, both equal to $\tfrac12$, so
+$$N_1:=N_1-\tfrac12N_6,\qquad N_4:=N_4-\tfrac12N_6 .$$
+Collecting both nodes, the final functions are</p>
+$$
+\begin{aligned}
+N_1&=\tfrac14(1-\xi)(1-\eta)-\tfrac14(\eta-1)(\xi^2-1)-\tfrac14(\xi-1)(\eta^2-1),\\
+N_2&=\tfrac14(1+\xi)(1-\eta)-\tfrac14(\eta-1)(\xi^2-1),\\
+N_3&=\tfrac14(1+\xi)(1+\eta),\\
+N_4&=\tfrac14(1-\xi)(1+\eta)-\tfrac14(\xi-1)(\eta^2-1),\\
+N_5&=\tfrac12(\eta-1)(\xi^2-1),\qquad N_6=\tfrac12(\xi-1)(\eta^2-1).
+\end{aligned}
+$$
+<p><em>Remark on the signs.</em> In $N_5=\tfrac12(\eta-1)(\xi^2-1)$ and $N_6=\tfrac12(\xi-1)(\eta^2-1)$ both factors are negative inside the parent square, so each function is positive there; they equal $\tfrac12(1-\eta)(1-\xi^2)$ and $\tfrac12(1-\xi)(1-\eta^2)$, the functions $N_5$ and $N_8$ of Section 2. The Kronecker and partition-of-unity checks below hold with exactly these signs.</p>
+<p><strong>Check at the centre $(0,0)$.</strong> $N_1=\tfrac14-\tfrac14(-1)(-1)-\tfrac14(-1)(-1)=-\tfrac14$; $N_2=\tfrac14-\tfrac14=0$; $N_3=\tfrac14$; $N_4=\tfrac14-\tfrac14=0$; $N_5=\tfrac12$; $N_6=\tfrac12$. Their sum is $-\tfrac14+0+\tfrac14+0+\tfrac12+\tfrac12=1$ &#10003;.</p>
+<p><strong>Check at node 5, $(0,-1)$.</strong> $N_5=\tfrac12(-2)(-1)=1$; $N_1=\tfrac14\cdot1\cdot2-\tfrac14(-2)(-1)-\tfrac14(-1)(0)=\tfrac12-\tfrac12-0=0$; $N_2=\tfrac12-\tfrac12=0$; $N_3=0$; $N_4=0$; $N_6=0$ &#10003;.</p>
+</div>
+
+<div class="callout principle">
+<p><strong>Relation to the 8-node element.</strong> Put all four side nodes in and apply the rule. For corner 1 the adjacent sides are the bottom (node 5) and the left (node 8):</p>
+$$N_1=\tfrac14(1-\xi)(1-\eta)-\tfrac12N_5-\tfrac12N_8=\tfrac14(1-\xi)(1-\eta)\big[1-(1+\xi)-(1+\eta)\big]=-\tfrac14(1-\xi)(1-\eta)(1+\xi+\eta),$$
+<p>which is exactly the serendipity corner function of Section 2. So the 8-node element is the <em>special case</em> of the transition family with every side quadratic, and the 4-node element is the special case with every side linear. All 16 possible choices of mid-side nodes give valid shape functions with $\sum N_i=1$ and the Kronecker property (the widget below checks this for the choice you make).</p>
+</div>
+
+<h3 id="lec11-transition-builder">Interactive: build a transition element</h3>
+<p>Switch the four mid-side nodes on and off. The panel lists the construction of every function, shows the selected function over the parent square, and checks the Kronecker table (identity matrix) and the partition of unity at the probe point.</p>
+<div class="iso-widget" id="trWidget">
+  <p class="iso-kbd" id="trKbdHint">Keyboard: Tab through the buttons; the &xi; and &eta; sliders move the probe point.</p>
+  <div class="iso-presets" id="trSides" role="group" aria-label="Mid-side nodes present"></div>
+  <div class="iso-presets" id="trNodes" role="group" aria-label="Shape function displayed"></div>
+  <div class="iso-panels">
+    <figure class="iso-fig" style="flex:1 1 300px;max-width:400px">
+      <canvas id="trCanvas" aria-describedby="trKbdHint" width="380" height="380" style="width:100%;height:auto;touch-action:none;cursor:crosshair;border:1px solid var(--line);border-radius:4px;background:#fff" role="img" aria-label="Contour plot of the selected shape function of the transition element over the parent square"></canvas>
+      <figcaption>Selected shape function; only the nodes that exist are drawn</figcaption>
+    </figure>
+    <div class="iso-fig" style="flex:1 1 280px">
+      <div id="trForms" style="font-size:0.88rem"></div>
+      <div class="shape-sliders">
+        <label>&xi; = <output id="trXiOut" aria-live="off">0.30</output>
+          <input type="range" id="trXi" min="-1" max="1" step="0.05" value="0.3" aria-label="Probe xi coordinate"></label>
+        <label>&eta; = <output id="trEtaOut" aria-live="off">-0.40</output>
+          <input type="range" id="trEta" min="-1" max="1" step="0.05" value="-0.4" aria-label="Probe eta coordinate"></label>
+      </div>
+      <div class="table-scroll">
+        <table class="iso-table"><thead><tr><th>Node</th><th>N<sub>i</sub> at probe</th></tr></thead><tbody id="trRows"></tbody></table>
+      </div>
+    </div>
+  </div>
+  <div class="iso-readout">
+    <div id="trStatus" class="iso-status ok" role="status" aria-live="polite" aria-atomic="true"></div>
+    <p class="iso-area" id="trInfo" aria-live="off"></p>
+    <div class="table-scroll" id="trKron"></div>
+  </div>
+</div>
+
+<details class="check-prompt">
+<summary>Check your understanding: a four-node element has a quadratic neighbour only along its right side. Which nodes does it need, and which shape functions change?</summary>
+<div class="answer">
+<p>It needs the four corners plus <strong>one</strong> side node, node 6 at $(1,0)$: five nodes and 10 DOFs. Its function is $N_6=\tfrac12(1+\xi)(1-\eta^2)$. The corners that are nonzero at $(1,0)$ are 2 and 3, so $N_2:=N_2-\tfrac12N_6$ and $N_3:=N_3-\tfrac12N_6$, while $N_1$ and $N_4$ stay bilinear.</p>
+</div>
+</details>
+
+<hr/>
+<h2 id="lec11-6-hexahedral-element">6. The 8-Node Hexahedral (Brick) Element</h2>
+<p>Everything so far lived on a square. Real structures are solids, and the three-dimensional counterpart of the four-node quadrilateral is the <strong>hexahedral (brick) isoparametric element</strong>. Its parent element is the cube $(\xi,\eta,\chi)\in[-1,1]^3$; the new coordinate $\chi$ points in the third direction. The eight nodes are numbered like the square, first the bottom face ($\chi=-1$) counterclockwise from the lower left, then the same four above it:</p>
+<figure><svg viewBox="0 0 640 380" role="img" aria-label="Parent cube of the eight-node brick with nodes numbered 1 to 8 and the xi, eta and chi axes" style="max-width:640px;width:100%;background:#fdfcfa;border:1px solid #e4e0da;border-radius:4px;font-family:Helvetica,Arial,sans-serif">
+<defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#555"/></marker></defs>
+<line x1="162.2" y1="343.2" x2="352.2" y2="343.2" stroke="#333" stroke-width="1.8" />
+<line x1="352.2" y1="343.2" x2="437.8" y2="276.8" stroke="#333" stroke-width="1.8" />
+<line x1="437.8" y1="276.8" x2="247.8" y2="276.8" stroke="#333" stroke-width="1.8" stroke-dasharray="6 4"/>
+<line x1="247.8" y1="276.8" x2="162.2" y2="343.2" stroke="#333" stroke-width="1.8" stroke-dasharray="6 4"/>
+<line x1="162.2" y1="153.2" x2="352.2" y2="153.2" stroke="#333" stroke-width="1.8" />
+<line x1="352.2" y1="153.2" x2="437.8" y2="86.8" stroke="#333" stroke-width="1.8" />
+<line x1="437.8" y1="86.8" x2="247.8" y2="86.8" stroke="#333" stroke-width="1.8" />
+<line x1="247.8" y1="86.8" x2="162.2" y2="153.2" stroke="#333" stroke-width="1.8" />
+<line x1="162.2" y1="343.2" x2="162.2" y2="153.2" stroke="#333" stroke-width="1.8" />
+<line x1="352.2" y1="343.2" x2="352.2" y2="153.2" stroke="#333" stroke-width="1.8" />
+<line x1="437.8" y1="276.8" x2="437.8" y2="86.8" stroke="#333" stroke-width="1.8" />
+<line x1="247.8" y1="276.8" x2="247.8" y2="86.8" stroke="#333" stroke-width="1.8" stroke-dasharray="6 4"/>
+<line x1="300.0" y1="215.0" x2="480.5" y2="215.0" stroke="#c9473f" stroke-width="2" marker-end="url(#arr)"/>
+<text x="488.5" y="211.0" font-size="17" font-style="italic" fill="#c9473f">ξ</text>
+<line x1="300.0" y1="215.0" x2="381.2" y2="151.8" stroke="#2b7a57" stroke-width="2" marker-end="url(#arr)"/>
+<text x="389.2" y="147.8" font-size="17" font-style="italic" fill="#2b7a57">η</text>
+<line x1="300.0" y1="215.0" x2="300.0" y2="34.5" stroke="#3b7dd8" stroke-width="2" marker-end="url(#arr)"/>
+<text x="308.0" y="30.5" font-size="17" font-style="italic" fill="#3b7dd8">χ</text>
+<circle cx="162.2" cy="343.2" r="11" fill="#fff" stroke="#7a4a63" stroke-width="1.8"/><text x="162.2" y="347.8" font-size="13" font-weight="700" text-anchor="middle" fill="#7a4a63">1</text>
+<text x="144.2" y="369.2" font-size="11" fill="#555" text-anchor="end">(−1, −1, −1)</text>
+<circle cx="352.2" cy="343.2" r="11" fill="#fff" stroke="#7a4a63" stroke-width="1.8"/><text x="352.2" y="347.8" font-size="13" font-weight="700" text-anchor="middle" fill="#7a4a63">2</text>
+<text x="370.2" y="369.2" font-size="11" fill="#555" text-anchor="start">(+1, −1, −1)</text>
+<circle cx="437.8" cy="276.8" r="11" fill="#fff" stroke="#7a4a63" stroke-width="1.8"/><text x="437.8" y="281.2" font-size="13" font-weight="700" text-anchor="middle" fill="#7a4a63">3</text>
+<text x="455.8" y="302.8" font-size="11" fill="#555" text-anchor="start">(+1, +1, −1)</text>
+<circle cx="247.8" cy="276.8" r="11" fill="#fff" stroke="#7a4a63" stroke-width="1.8"/><text x="247.8" y="281.2" font-size="13" font-weight="700" text-anchor="middle" fill="#7a4a63">4</text>
+<text x="229.8" y="302.8" font-size="11" fill="#555" text-anchor="end">(−1, +1, −1)</text>
+<circle cx="162.2" cy="153.2" r="11" fill="#fff" stroke="#7a4a63" stroke-width="1.8"/><text x="162.2" y="157.8" font-size="13" font-weight="700" text-anchor="middle" fill="#7a4a63">5</text>
+<text x="144.2" y="137.2" font-size="11" fill="#555" text-anchor="end">(−1, −1, +1)</text>
+<circle cx="352.2" cy="153.2" r="11" fill="#fff" stroke="#7a4a63" stroke-width="1.8"/><text x="352.2" y="157.8" font-size="13" font-weight="700" text-anchor="middle" fill="#7a4a63">6</text>
+<text x="370.2" y="137.2" font-size="11" fill="#555" text-anchor="start">(+1, −1, +1)</text>
+<circle cx="437.8" cy="86.8" r="11" fill="#fff" stroke="#7a4a63" stroke-width="1.8"/><text x="437.8" y="91.2" font-size="13" font-weight="700" text-anchor="middle" fill="#7a4a63">7</text>
+<text x="455.8" y="70.8" font-size="11" fill="#555" text-anchor="start">(+1, +1, +1)</text>
+<circle cx="247.8" cy="86.8" r="11" fill="#fff" stroke="#7a4a63" stroke-width="1.8"/><text x="247.8" y="91.2" font-size="13" font-weight="700" text-anchor="middle" fill="#7a4a63">8</text>
+<text x="229.8" y="70.8" font-size="11" fill="#555" text-anchor="end">(−1, +1, +1)</text>
+</svg><figcaption>Parent cube of the eight-node brick; hidden edges at node 4 are dashed. The top face repeats the numbering of the bottom face.</figcaption></figure>
+<div class="table-scroll">
+<table class="map-table">
+<thead><tr><th>Node</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th><th>8</th></tr></thead>
+<tbody>
+<tr><td>$(\xi_i,\eta_i,\chi_i)$</td><td>$(-,-,-)$</td><td>$(+,-,-)$</td><td>$(+,+,-)$</td><td>$(-,+,-)$</td><td>$(-,-,+)$</td><td>$(+,-,+)$</td><td>$(+,+,+)$</td><td>$(-,+,+)$</td></tr>
+</tbody>
+</table>
+</div>
+<p>Node $i+4$ lies directly above node $i$; the three dashed edges in the figure are the ones hidden behind the cube at node 4.</p>
+
+<h3 id="lec11-brick-shape-functions">Shape functions</h3>
+<p>The trilinear functions are products of three linear factors, one per direction, and share one formula:</p>
+$$
+N_i(\xi,\eta,\chi)=\tfrac18(1+\xi_i\xi)(1+\eta_i\eta)(1+\chi_i\chi),\qquad i=1,\dots,8,
+$$
+<p>that is,</p>
+$$
+\begin{aligned}
+N_1&=\tfrac18(1-\xi)(1-\eta)(1-\chi), & N_2&=\tfrac18(1+\xi)(1-\eta)(1-\chi), & N_3&=\tfrac18(1+\xi)(1+\eta)(1-\chi), & N_4&=\tfrac18(1-\xi)(1+\eta)(1-\chi),\\
+N_5&=\tfrac18(1-\xi)(1-\eta)(1+\chi), & N_6&=\tfrac18(1+\xi)(1-\eta)(1+\chi), & N_7&=\tfrac18(1+\xi)(1+\eta)(1+\chi), & N_8&=\tfrac18(1-\xi)(1+\eta)(1+\chi).
+\end{aligned}
+$$
+<p>As in 2-D, $N_i$ equals 1 at its own node and 0 at the other seven, $\sum N_i=1$, and $\sum\xi_iN_i=\xi$ (and likewise for $\eta,\chi$); on every face the function reduces to the bilinear functions of Lecture 9, so two bricks that share a face share the same four-node bilinear displacement on it.</p>
+
+<h3 id="lec11-brick-map">Geometry, displacement and the Jacobian</h3>
+<p>The isoparametric idea is unchanged: the same $N_i$ interpolate the position, $x=\sum N_ix_i$, $y=\sum N_iy_i$, $z=\sum N_iz_i$, and the displacements $u,v,w$; the element has $3\times8=24$ DOFs, $\{u^e\}=\{u_1,v_1,w_1,\dots,u_8,v_8,w_8\}^T$. The Jacobian is now $3\times3$:</p>
+$$
+[J]=\begin{bmatrix}\partial x/\partial\xi&\partial y/\partial\xi&\partial z/\partial\xi\\ \partial x/\partial\eta&\partial y/\partial\eta&\partial z/\partial\eta\\ \partial x/\partial\chi&\partial y/\partial\chi&\partial z/\partial\chi\end{bmatrix}
+=\underbrace{\begin{bmatrix}N_{1,\xi}&\cdots&N_{8,\xi}\\N_{1,\eta}&\cdots&N_{8,\eta}\\N_{1,\chi}&\cdots&N_{8,\chi}\end{bmatrix}}_{3\times8}\underbrace{\begin{bmatrix}x_1&y_1&z_1\\ \vdots&\vdots&\vdots\\ x_8&y_8&z_8\end{bmatrix}}_{8\times3},
+$$
+<p>and the chain rule reads $\{T_{,\xi},T_{,\eta},T_{,\chi}\}^T=[J]\{T_{,x},T_{,y},T_{,z}\}^T$, so $\{T_{,x},T_{,y},T_{,z}\}^T=[\Gamma]\{T_{,\xi},T_{,\eta},T_{,\chi}\}^T$ with $[\Gamma]=[J]^{-1}$. The volume element is $dV=\det[J]\,d\xi\,d\eta\,d\chi$, and again $\det[J]$ must be positive everywhere in the element.</p>
+
+<h3 id="lec11-brick-b-matrix">Strain&ndash;displacement matrix</h3>
+<p>The factorization $[B]=[B_1][B_2][B_3]$ of Lecture 9 extends directly. Order the nine displacement derivatives as $\{u_{,x},u_{,y},u_{,z},v_{,x},v_{,y},v_{,z},w_{,x},w_{,y},w_{,z}\}^T$ and the six strains as $\{\varepsilon_{xx},\varepsilon_{yy},\varepsilon_{zz},\gamma_{yz},\gamma_{xz},\gamma_{xy}\}^T$.</p>
+<p><strong>$[B_1]$ ($6\times9$): strains from the nine derivatives (constant 0/1 matrix).</strong></p>
+$$
+\begin{Bmatrix}\varepsilon_{xx}\\\varepsilon_{yy}\\\varepsilon_{zz}\\\gamma_{yz}\\\gamma_{xz}\\\gamma_{xy}\end{Bmatrix}=
+\underbrace{\begin{bmatrix}
+1&0&0&0&0&0&0&0&0\\
+0&0&0&0&1&0&0&0&0\\
+0&0&0&0&0&0&0&0&1\\
+0&0&0&0&0&1&0&1&0\\
+0&0&1&0&0&0&1&0&0\\
+0&1&0&1&0&0&0&0&0
+\end{bmatrix}}_{[B_1]}
+\begin{Bmatrix}u_{,x}\\u_{,y}\\u_{,z}\\v_{,x}\\v_{,y}\\v_{,z}\\w_{,x}\\w_{,y}\\w_{,z}\end{Bmatrix}
+$$
+<p>(for example $\gamma_{yz}=v_{,z}+w_{,y}$ puts ones in columns 6 and 8).</p>
+<p><strong>$[B_2]$ ($9\times9$): the chain rule, $[\Gamma]$ repeated three times.</strong></p>
+$$
+\begin{Bmatrix}u_{,x}\\u_{,y}\\u_{,z}\\ \vdots\\w_{,z}\end{Bmatrix}=
+\underbrace{\begin{bmatrix}[\Gamma]&0&0\\0&[\Gamma]&0\\0&0&[\Gamma]\end{bmatrix}}_{[B_2(\xi,\eta,\chi)]}
+\begin{Bmatrix}u_{,\xi}\\u_{,\eta}\\u_{,\chi}\\v_{,\xi}\\ \vdots\\w_{,\chi}\end{Bmatrix},\qquad [\Gamma]=\begin{bmatrix}\Gamma_{11}&\Gamma_{12}&\Gamma_{13}\\\Gamma_{21}&\Gamma_{22}&\Gamma_{23}\\\Gamma_{31}&\Gamma_{32}&\Gamma_{33}\end{bmatrix}.
+$$
+<p><strong>$[B_3]$ ($9\times24$): derivatives with respect to the natural coordinates.</strong> With the column $\mathbf n_i=\{N_{i,\xi},N_{i,\eta},N_{i,\chi}\}^T$ of $3$ entries,</p>
+$$
+\underbrace{\begin{Bmatrix}u_{,\xi}\\u_{,\eta}\\u_{,\chi}\\v_{,\xi}\\v_{,\eta}\\v_{,\chi}\\w_{,\xi}\\w_{,\eta}\\w_{,\chi}\end{Bmatrix}}_{9}=
+\underbrace{\begin{bmatrix}
+\mathbf n_1&0&0&\mathbf n_2&0&0&\cdots&\mathbf n_8&0&0\\
+0&\mathbf n_1&0&0&\mathbf n_2&0&\cdots&0&\mathbf n_8&0\\
+0&0&\mathbf n_1&0&0&\mathbf n_2&\cdots&0&0&\mathbf n_8
+\end{bmatrix}}_{[B_3(\xi,\eta,\chi)]\ (9\times24)}
+\begin{Bmatrix}u_1\\v_1\\w_1\\ \vdots\\u_8\\v_8\\w_8\end{Bmatrix}.
+$$
+<p>Their product $[B]=[B_1][B_2][B_3]$ is $(6\times9)(9\times9)(9\times24)=6\times24$, and $\{\varepsilon\}=[B]\{u^e\}$. (The first block row differentiates $u$, the second $v$, the third $w$; in every block the column $\mathbf n_i$ belongs to the <em>same</em> node $i$ as the DOF it multiplies.)</p>
+
+<h3 id="lec11-brick-hooke">Hooke&rsquo;s law in three dimensions</h3>
+<p>With the engineering strain ordering above, $\{\sigma(\vec x)\}=[D]\{\varepsilon(\vec x)\}$ where (we keep the name $[D]$ of Lecture 6 for this matrix so that $E$ stays Young&rsquo;s modulus)</p>
+$$
+[D]=\begin{bmatrix}\lambda+2\mu&\lambda&\lambda&0&0&0\\ \lambda&\lambda+2\mu&\lambda&0&0&0\\ \lambda&\lambda&\lambda+2\mu&0&0&0\\ 0&0&0&\mu&0&0\\0&0&0&0&\mu&0\\0&0&0&0&0&\mu\end{bmatrix},\qquad
+\lambda=\frac{\nu E}{(1+\nu)(1-2\nu)},\quad \mu=\frac{E}{2(1+\nu)} .
+$$
+<p>Here $E$ is the elasticity (Young&rsquo;s) modulus and $\nu$ is Poisson&rsquo;s ratio; $\mu$ is the shear modulus.</p>
+
+<h3 id="lec11-brick-stiffness">Stiffness matrix and Gauss quadrature</h3>
+$$
+[K^e]=\int_V[B]^T[D][B]\,dV=\iiint_V[B]^T[D][B]\,dx\,dy\,dz=\int_{-1}^{1}\!\!\int_{-1}^{1}\!\!\int_{-1}^{1}[B(\xi,\eta,\chi)]^T[D][B(\xi,\eta,\chi)]\,\det[J]\,d\xi\,d\eta\,d\chi .
+$$
+<p>The factor $\det[J]$ arises because of the change of coordinates. Call the whole integrand $\phi_{lm}(\xi,\eta,\chi)$ for the entry in row $l$, column $m$. The Gauss rule is the three-fold sum</p>
+$$
+\kappa_{lm}=\sum_{i}\sum_{j}\sum_{k}W_iW_jW_k\;\phi_{lm}(\xi_i,\eta_j,\chi_k),
+$$
+<p>and the standard choice is $2\times2\times2$: eight points $\xi_i,\eta_j,\chi_k=\pm1/\sqrt3$ with all weights equal to 1 (the weights sum to $8$, the volume of the parent cube). The element matrix is $24\times24$; a healthy brick has rank $24-6=18$ (six rigid-body motions). A single Gauss point leaves rank 6 and a mesh of such bricks falls apart into spurious deformation patterns.</p>
+
+<div class="example">
+<p class="example-label">Example</p>
+<p><strong>A rectangular brick with half-lengths $a,b,c$</strong>, nodes at $(\pm a,\pm b,\pm c)$ in the numbering above.</p>
+<p><strong>(a) Mapping.</strong> $x_i=a\xi_i$, $y_i=b\eta_i$, $z_i=c\chi_i$, and $\sum N_i\xi_i=\xi$, so $x=a\xi$, $y=b\eta$, $z=c\chi$.</p>
+<p><strong>(b) Jacobian.</strong> $[J]=\mathrm{diag}(a,b,c)$, $\det[J]=abc$, $[\Gamma]=\mathrm{diag}(1/a,1/b,1/c)$; the map is affine, so these are the same everywhere, and $V=\iiint abc\,d\xi\,d\eta\,d\chi=8abc$ &#10003;.</p>
+<p><strong>(c) The columns of $[B]$.</strong> $N_{i,x}=\dfrac{\xi_i(1+\eta_i\eta)(1+\chi_i\chi)}{8a}$, and similarly for $y,z$. At the centre $(0,0,0)$ the three columns of node $i$ (for $u_i,v_i,w_i$) are</p>
+$$
+[B(0,0,0)]_{\text{node }i}=\frac18\begin{bmatrix}\xi_i/a&0&0\\0&\eta_i/b&0\\0&0&\chi_i/c\\0&\chi_i/c&\eta_i/b\\ \chi_i/c&0&\xi_i/a\\ \eta_i/b&\xi_i/a&0\end{bmatrix}.
+$$
+<p><strong>(d) Constant-strain check.</strong> A uniform stretch $u=\varepsilon_0x$ has nodal values $u_i=\varepsilon_0a\xi_i$ and all other nodal displacements zero. Then $\varepsilon_{xx}=\sum_i\dfrac{\xi_i}{8a}\,\varepsilon_0a\xi_i=\dfrac{\varepsilon_0}{8}\sum_i\xi_i^2=\varepsilon_0$ &#10003; and every other strain component is $0$.</p>
+<p><strong>(e) Integration.</strong> The integrand of $[K^e]$ is a polynomial of degree at most 2 in each of $\xi,\eta,\chi$, so the two-point rule (exact to degree 3) integrates it <em>exactly</em> on this brick.</p>
+</div>
+
+<h3 id="lec11-brick-explorer">Interactive: the brick and its Jacobian</h3>
+<p>The element below starts as a sheared box with the affine map $x=3+2\xi+\tfrac12\eta$, $y=2+\tfrac32\eta$, $z=1+\chi$. Move the probe point $(\xi,\eta,\chi)$ with the sliders and read off the eight weights, the mapped point $P$, $[J]$ and $\det[J]$. Then pull node 7 out of place: $[J]$ stops being constant and, if you push node 7 far enough <em>into</em> the element ($d\le-1$), $\det[J]$ reaches zero and then turns negative, and the element is invalid.</p>
+<div class="iso-widget jac" id="brkWidget">
+  <div class="shape-sliders">
+    <label>&xi; = <output id="brkXiOut" aria-live="off">0.20</output>
+      <input type="range" id="brkXi" min="-1" max="1" step="0.05" value="0.2" aria-label="Probe xi coordinate"></label>
+    <label>&eta; = <output id="brkEtaOut" aria-live="off">-0.30</output>
+      <input type="range" id="brkEta" min="-1" max="1" step="0.05" value="-0.3" aria-label="Probe eta coordinate"></label>
+    <label>&chi; = <output id="brkChiOut" aria-live="off">0.40</output>
+      <input type="range" id="brkChi" min="-1" max="1" step="0.05" value="0.4" aria-label="Probe chi coordinate"></label>
+    <label>pull node 7 by (d,d,d), d = <output id="brkPullOut" aria-live="off">0.00</output>
+      <input type="range" id="brkPull" min="-1.5" max="1.5" step="0.05" value="0" aria-label="Displace node 7 along the diagonal"></label>
+  </div>
+  <div class="iso-panels">
+    <figure class="iso-fig" style="flex:1 1 380px">
+      <svg id="brkSvg" viewBox="0 0 620 300" role="img" aria-label="Oblique drawing of the physical eight-node brick with numbered nodes and the mapped probe point P" style="max-width:620px;width:100%;background:#fdfcfa;border:1px solid #e4e0da;border-radius:4px"></svg>
+      <figcaption>Physical element; hidden edges at node 4 are dashed, the black dot is the image P of the probe point</figcaption>
+    </figure>
+    <div class="iso-fig jbox" id="brkJ" style="flex:0 1 250px"></div>
+  </div>
+  <div class="iso-readout">
+    <div id="brkStatus" class="iso-status ok" role="status" aria-live="polite" aria-atomic="true"></div>
+    <p class="iso-area" id="brkNote" aria-live="off"></p>
+    <div class="table-scroll">
+      <table class="iso-table brk-table">
+        <thead><tr><th>Node</th><th>(&xi;<sub>i</sub>, &eta;<sub>i</sub>, &chi;<sub>i</sub>)</th><th>N<sub>i</sub> at probe</th><th>(x<sub>i</sub>, y<sub>i</sub>, z<sub>i</sub>)</th></tr></thead>
+        <tbody id="brkRows"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<details class="check-prompt">
+<summary>Check your understanding: why must a healthy brick stiffness matrix have rank 18, and what does a $1\times1\times1$ rule give?</summary>
+<div class="answer">
+<p>A brick has $3\times8=24$ DOFs, and an unsupported solid has $6$ rigid-body motions (three translations, three rotations) that produce no strain. Every other deformation must store energy, so the rank is $24-6=18$. One Gauss point supplies only 6 independent strain components, so the rank cannot exceed 6; the remaining 12 non-rigid deformation patterns carry zero energy and appear as spurious (hourglass) modes.</p>
+</div>
+</details>
+
+<hr/>
+<h2 id="lec11-7-algorithm">7. Algorithm and Code</h2>
+<div class="algorithm">
+<p><strong>Element stiffness of an 8-node serendipity quadrilateral</strong></p>
+<ol>
+<li>Input the eight nodal coordinates (corners 1&ndash;4 counterclockwise, mid-sides 5&ndash;8), $[D]$, $t$ and the Gauss rule ($3\times3$ by default).</li>
+<li>Set $[K^e]=[0]_{16\times16}$.</li>
+<li>For each Gauss point $(\xi_p,\eta_p)$ with weight $W_p$:
+<ol type="a">
+<li>Evaluate $N_{i,\xi}$ and $N_{i,\eta}$ from the corner and mid-side formulas of Section 4 ($2\times8$).</li>
+<li>Form $[J]=[N_{,\xi\eta}][X]$ and $\det[J]$; stop if $\det[J]\le0$.</li>
+<li>Compute $\partial N_i/\partial x,\ \partial N_i/\partial y$ from $[J]^{-1}[N_{,\xi\eta}]$ and fill $[B]$ ($3\times16$).</li>
+<li>Add $t\,W_p\,[B]^T[D][B]\det[J]$ to $[K^e]$.</li>
+</ol></li>
+<li>Return $[K^e]$; assemble with the DOF map. For a <strong>transition element</strong> keep only the shape functions of the nodes that exist (Section 5) and size $[K^e]$ as $2n\times2n$.</li>
+<li><strong>Brick:</strong> the same loop over a $2\times2\times2$ rule with $[J]$ of size $3\times3$, $[B]$ of size $6\times24$, $[K^e]$ of size $24\times24$.</li>
+</ol>
+</div>
+<p>The same algorithm in Python (it reproduces the ranks quoted in Sections 4 and 6):</p>
+<!-- Read-only display + Run payload. Keep raw < > & here; do not HTML-escape them. -->
+<noscript><p style="font-size:0.85rem;color:var(--sub)">The interactive examples and the in-browser Python runner require JavaScript; the prose and figures above remain available.</p></noscript>
+<textarea id="s8-code" readonly aria-readonly="true" wrap="off" rows="34" spellcheck="false" aria-label="Python source of the serendipity, transition and brick element routines (read-only)" style="width:100%;font-family:Menlo,Consolas,monospace;font-size:0.78rem;line-height:1.4;padding:10px;border:1px solid var(--line);border-radius:4px;background:var(--card);color:var(--ink);box-sizing:border-box;white-space:pre;overflow-x:auto">import numpy as np
+
+XI  = [-1,  1, 1, -1,  0, 1, 0, -1]      # node coordinates on the parent square
+ETA = [-1, -1, 1,  1, -1, 0, 1,  0]      # nodes 1-4 corners, 5-8 mid-sides (bottom, right, top, left)
+
+def s8_shape(xi, eta):
+    """Shape functions N (8,) and derivatives dN (2, 8) of the 8-node serendipity element."""
+    N, dN = np.zeros(8), np.zeros((2, 8))
+    for i in range(8):
+        a, b = XI[i], ETA[i]
+        if i < 4:                                   # corner node
+            N[i] = 0.25 * (1 + a*xi) * (1 + b*eta) * (a*xi + b*eta - 1)
+            dN[0, i] = 0.25 * a * (1 + b*eta) * (2*a*xi + b*eta)
+            dN[1, i] = 0.25 * b * (1 + a*xi) * (a*xi + 2*b*eta)
+        elif a == 0:                                # mid-side node on eta = +-1
+            N[i] = 0.5 * (1 - xi**2) * (1 + b*eta)
+            dN[0, i] = -xi * (1 + b*eta)
+            dN[1, i] = 0.5 * b * (1 - xi**2)
+        else:                                       # mid-side node on xi = +-1
+            N[i] = 0.5 * (1 + a*xi) * (1 - eta**2)
+            dN[0, i] = 0.5 * a * (1 - eta**2)
+            dN[1, i] = -eta * (1 + a*xi)
+    return N, dN
+
+def transition_shape(xi, eta, sides):
+    """Transition serendipity element: corners 1-4 plus the mid-side nodes listed in `sides`
+    (any subset of 5, 6, 7, 8).  Returns the shape functions in the order 1-4, then sorted(sides)."""
+    N8, _ = s8_shape(xi, eta)
+    c = [(1-xi)*(1-eta)/4, (1+xi)*(1-eta)/4, (1+xi)*(1+eta)/4, (1-xi)*(1+eta)/4]   # Step 1: bilinear
+    side = {k: N8[k-1] for k in sides}                                             # Step 2: side nodes
+    # Step 3: subtract half of each side function from the two corners it touches
+    touch = {5: (0, 1), 6: (1, 2), 7: (2, 3), 8: (3, 0)}
+    for k in sides:
+        for j in touch[k]:
+            c[j] -= 0.5 * side[k]
+    return np.array(c + [side[k] for k in sorted(sides)])
+
+def s8_stiffness(xy, E, nu, t, n_gauss=3):
+    """Element stiffness of the 8-node serendipity quadrilateral (plane stress). xy: (8, 2)."""
+    D = E / (1 - nu**2) * np.array([[1, nu, 0], [nu, 1, 0], [0, 0, (1 - nu) / 2]])
+    if n_gauss == 2:
+        pts, wts = [-1/np.sqrt(3), 1/np.sqrt(3)], [1.0, 1.0]
+    else:
+        pts, wts = [-np.sqrt(0.6), 0.0, np.sqrt(0.6)], [5/9, 8/9, 5/9]
+    K = np.zeros((16, 16))
+    for xi, wx in zip(pts, wts):
+        for eta, wy in zip(pts, wts):
+            _, dN = s8_shape(xi, eta)
+            J = dN @ xy
+            dNdx = np.linalg.solve(J, dN)
+            B = np.zeros((3, 16))
+            B[0, 0::2] = dNdx[0]; B[1, 1::2] = dNdx[1]
+            B[2, 0::2] = dNdx[1]; B[2, 1::2] = dNdx[0]
+            K += t * wx * wy * np.linalg.det(J) * (B.T @ D @ B)
+    return K
+
+def brick_shape(xi, eta, chi):
+    """8-node brick: N (8,) and dN (3, 8)."""
+    X = [-1, 1, 1, -1, -1, 1, 1, -1]
+    Y = [-1, -1, 1, 1, -1, -1, 1, 1]
+    Z = [-1, -1, -1, -1, 1, 1, 1, 1]
+    N, dN = np.zeros(8), np.zeros((3, 8))
+    for i in range(8):
+        a, b, c = 1 + X[i]*xi, 1 + Y[i]*eta, 1 + Z[i]*chi
+        N[i] = a * b * c / 8
+        dN[0, i] = X[i] * b * c / 8
+        dN[1, i] = Y[i] * a * c / 8
+        dN[2, i] = Z[i] * a * b / 8
+    return N, dN
+
+def brick_stiffness(xyz, E, nu, n_gauss=2):
+    """Element stiffness of the 8-node brick, 24 x 24.  xyz: (8, 3)."""
+    lam = nu * E / ((1 + nu) * (1 - 2*nu)); mu = E / (2 * (1 + nu))
+    D = np.array([[lam + 2*mu, lam, lam, 0, 0, 0],
+                  [lam, lam + 2*mu, lam, 0, 0, 0],
+                  [lam, lam, lam + 2*mu, 0, 0, 0],
+                  [0, 0, 0, mu, 0, 0], [0, 0, 0, 0, mu, 0], [0, 0, 0, 0, 0, mu]])
+    if n_gauss == 1:
+        pts, wts = [0.0], [2.0]
+    elif n_gauss == 2:
+        pts, wts = [-1/np.sqrt(3), 1/np.sqrt(3)], [1.0, 1.0]
+    else:
+        pts, wts = [-np.sqrt(0.6), 0.0, np.sqrt(0.6)], [5/9, 8/9, 5/9]
+    K = np.zeros((24, 24))
+    for xi, wx in zip(pts, wts):
+        for eta, wy in zip(pts, wts):
+            for chi, wz in zip(pts, wts):
+                _, dN = brick_shape(xi, eta, chi)
+                J = dN @ xyz                         # 3 x 3
+                dNdx = np.linalg.solve(J, dN)        # 3 x 8
+                B = np.zeros((6, 24))
+                B[0, 0::3] = dNdx[0]; B[1, 1::3] = dNdx[1]; B[2, 2::3] = dNdx[2]
+                B[3, 1::3] = dNdx[2]; B[3, 2::3] = dNdx[1]      # gamma_yz
+                B[4, 0::3] = dNdx[2]; B[4, 2::3] = dNdx[0]      # gamma_xz
+                B[5, 0::3] = dNdx[1]; B[5, 1::3] = dNdx[0]      # gamma_xy
+                K += wx * wy * wz * np.linalg.det(J) * (B.T @ D @ B)
+    return K
+
+# --- checks -----------------------------------------------------------------------------
+corners = np.array([[1, 1], [5, 1], [7, 3], [3, 3]], float)       # parallelogram of Lectures 9-10
+mids = [(corners[i] + corners[(i + 1) % 4]) / 2 for i in range(4)]
+xy8 = np.vstack([corners, mids])                                  # nodes 1-4, then 5-8
+
+N, _ = s8_shape(0.3, -0.6)
+print('sum N_i =', round(N.sum(), 12), ' (partition of unity)')
+print('transition (5, 8) at node 8:', np.round(transition_shape(-1, 0, [5, 8]), 12))   # 1 in the last slot
+
+for n in (3, 2):
+    K = s8_stiffness(xy8, E=10000, nu=0.3, t=1, n_gauss=n)
+    print(f'serendipity, {n}x{n} Gauss: rank =', np.linalg.matrix_rank(K / np.abs(K).max(), tol=1e-8), 'of 16')   # 13, then 12
+
+xyz = np.array([[0,0,0],[2,0,0],[2,2,0],[0,2,0],[0,0,2],[2,0,2],[2,2,2],[0,2,2]], float)   # 2 x 2 x 2 cube
+for n in (2, 1):
+    Kb = brick_stiffness(xyz, E=10000, nu=0.3, n_gauss=n)
+    print(f'brick, {n}x{n}x{n} Gauss: size', Kb.shape, 'rank =', np.linalg.matrix_rank(Kb / np.abs(Kb).max(), tol=1e-8))   # 18, then 6
+</textarea>
+<div class="iso-presets" id="s8-actions" role="group" aria-label="Code actions">
+  <button type="button" id="s8-run">Run</button>
+  <button type="button" id="s8-copy">Copy code</button>
+</div>
+<p class="iso-kbd" style="margin:4px 0">The code above is read-only and Run executes exactly this shipped snippet. To experiment, use &ldquo;Copy code&rdquo; and paste it into Colab or Jupyter (NumPy required).</p>
+<p class="iso-kbd" style="margin:4px 0">Runs in your browser only; nothing is uploaded. The Python runtime is downloaded only after you press Run.</p>
+<p id="s8-status" class="iso-kbd" role="status" aria-live="polite" style="margin:4px 0">Backend: not loaded yet.</p>
+<pre id="s8-output" role="status" aria-live="polite" aria-label="Program output">Press Run to execute the code above.</pre>
+
+<details class="check-prompt">
+<summary>Check your understanding: in <code>transition_shape</code>, why is the correction subtracted with the factor 0.5 and not with the value of the corner function computed numerically?</summary>
+<div class="answer">
+<p>For a mid-side node the only corners that are nonzero at its location are the two ends of that side, and the bilinear corner function equals exactly $\tfrac12$ there. So the number to subtract is always $\tfrac12$. A general-purpose routine could evaluate $N_j(\xi_k,\eta_k)$ instead and subtract that multiple of $N_k$; for this family the result is the same.</p>
+</div>
+</details>
+
+<hr/>
+<h2 id="lec11-8-conclusion">8. Conclusion and Key Takeaways</h2>
+<ul>
+<li><strong>Why serendipity.</strong> The 9-node Lagrange element costs an extra, unshared centre node that is awkward to place. The 8-node serendipity element drops it and keeps the complete quadratic.</li>
+<li><strong>Shape functions.</strong> Corners $N_i=\tfrac14(1+\xi_i\xi)(1+\eta_i\eta)(\xi_i\xi+\eta_i\eta-1)$; mid-sides $\tfrac12(1-\xi^2)(1+\eta_i\eta)$ or $\tfrac12(1+\xi_i\xi)(1-\eta^2)$. Corner functions go negative (minimum $-\tfrac14$ at the centre); mid-side functions do not.</li>
+<li><strong>Polynomial content.</strong> Serendipity = complete degree $p$ plus the boundary-controlled higher terms; Lagrange = all $\xi^i\eta^j$ with $i,j\le p$. For $p=2$ the only difference is $\xi^2\eta^2$.</li>
+<li><strong>Same pipeline.</strong> $[J]$ is $2\times8$ times $8\times2$, $[B]$ is $3\times16$, $[K^e]$ is $16\times16$; use $3\times3$ Gauss (rank 13); $2\times2$ leaves rank 12, one spurious mode.</li>
+<li><strong>Transition elements.</strong> Joining elements of different degree needs a conforming interface. Start from the bilinear corners, add a parabolic function for each wanted side node, and let every adjacent corner give up $\tfrac12$ of it. Any subset of the four sides works; all four give the 8-node element, none gives the 4-node element.</li>
+<li><strong>3-D brick.</strong> $N_i=\tfrac18(1+\xi_i\xi)(1+\eta_i\eta)(1+\chi_i\chi)$; $[J]$ is $3\times3$; $[B]=[B_1][B_2][B_3]$ is $(6\times9)(9\times9)(9\times24)$; $[D]$ uses $\lambda$ and $\mu$; $[K^e]$ is $24\times24$ by $2\times2\times2$ Gauss quadrature with rank 18.</li>
+<li><strong>Looking ahead.</strong> The next lecture discusses the practical choices: which element, which integration rule, how to mesh.</li>
+</ul>
+
+<div class="algorithm">
+<p><strong>Algorithm summary: $[K^e]$ by Gauss quadrature (2-D serendipity / transition, 3-D brick)</strong></p>
+<pre><code>Ke &larr; 0                                      (2n &times; 2n  or  24 &times; 24)
+for each Gauss point (&xi;p, &eta;p [, &chi;p]) with weight Wp
+    dN   &larr; shape derivatives w.r.t. natural coordinates     (2 &times; n  or  3 &times; 8)
+    J    &larr; dN &middot; X ;   detJ &larr; det(J)  (must be &gt; 0)
+    dNdx &larr; J<sup>-1</sup> &middot; dN
+    B    &larr; fill from dNdx  (3 &times; 2n  or  6 &times; 24)
+    Ke   &larr; Ke + [t] &middot; Wp &middot; detJ &middot; B<sup>T</sup> D B
+scatter Ke into the global K with the element's DOF map</code></pre>
+</div>
+
+<h3 id="lec11-summary-table">Summary: concept &rarr; formula &rarr; common failure</h3>
+<div class="table-scroll">
+<table class="map-table">
+  <thead><tr><th scope="col">Concept</th><th scope="col">Formula</th><th scope="col">Common failure</th></tr></thead>
+  <tbody>
+    <tr><td>Serendipity corner function</td><td>$N_i=\tfrac14(1+\xi_i\xi)(1+\eta_i\eta)(\xi_i\xi+\eta_i\eta-1)$</td><td>Using the Lagrange product $L(\xi)L(\eta)$ without a centre node</td></tr>
+    <tr><td>Serendipity mid-side function</td><td>$N_5=\tfrac12(1-\xi^2)(1-\eta)$ and its rotations</td><td>Putting the parabola on the wrong coordinate</td></tr>
+    <tr><td>Lagrange vs. serendipity</td><td>$(p+1)^2$ terms vs. complete degree $p$ plus boundary terms</td><td>Expecting the centre node to raise the convergence rate</td></tr>
+    <tr><td>Transition element</td><td>$N_j:=N_j-\tfrac12N_k$ for every adjacent side node $k$</td><td>Forgetting a corner correction; a linear side next to a quadratic one</td></tr>
+    <tr><td>Brick shape function</td><td>$N_i=\tfrac18(1+\xi_i\xi)(1+\eta_i\eta)(1+\chi_i\chi)$</td><td>Wrong node order (top face must repeat the bottom order)</td></tr>
+    <tr><td>3-D strain matrix</td><td>$[B]=[B_1][B_2][B_3]$, $6\times24$; $[B_2]=\mathrm{diag}([\Gamma],[\Gamma],[\Gamma])$</td><td>Mixing the nodes within a block row of $[B_3]$</td></tr>
+    <tr><td>Integration</td><td>$8$-node: $3\times3$ (16&times;16, rank 13); brick: $2\times2\times2$ (24&times;24, rank 18)</td><td>$2\times2$ on the 8-node (rank 12) or one point on the brick (rank 6)</td></tr>
+  </tbody>
+</table>
+</div>
+</div>
+</section>
+
+
+<hr class="lecture-sep" />
+<nav class="page-pager"><a href="14_Lagrange_element.html">&larr; The Lagrange Element</a><span style="color:var(--sub);">Practical Considerations &middot; coming soon</span></nav>
+<footer class="doc-end">
+      <p>CEE 2333 — Fundamentals of the Finite Element Method · Combined Course Notes</p>
+      <p>This page was developed with the assistance of various generative AI tools.</p>
+      <p><a href="#top">Back to top ↑</a></p>
+    </footer>
+  </main>
+</div>
+
+<script>
+(function () {
+  var toggle = document.getElementById('navToggle');
+  var sidebar = document.getElementById('sidebar');
+  var mobileQuery = window.matchMedia('(max-width: 760px)');
+
+  function syncSidebarA11y() {
+    if (!mobileQuery.matches) {
+      sidebar.removeAttribute('aria-hidden');
+      if ('inert' in sidebar) sidebar.inert = false;
+      return;
+    }
+    var open = sidebar.classList.contains('open');
+    sidebar.setAttribute('aria-hidden', open ? 'false' : 'true');
+    if ('inert' in sidebar) sidebar.inert = !open;
+  }
+
+  syncSidebarA11y();
+  if (mobileQuery.addEventListener) {
+    mobileQuery.addEventListener('change', syncSidebarA11y);
+  } else if (mobileQuery.addListener) {
+    mobileQuery.addListener(syncSidebarA11y);
+  }
+  window.addEventListener('resize', syncSidebarA11y);
+
+  toggle.addEventListener('click', function () {
+    sidebar.classList.toggle('open');
+    syncSidebarA11y();
+    toggle.setAttribute('aria-expanded', sidebar.classList.contains('open') ? 'true' : 'false');
+  });
+  var links = Array.prototype.slice.call(document.querySelectorAll('.toc-link'));
+  links.forEach(function (l) {
+    l.addEventListener('click', function () {
+      sidebar.classList.remove('open');
+      toggle.setAttribute('aria-expanded', 'false');
+      syncSidebarA11y();
+    });
+  });
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape' && sidebar.classList.contains('open')) {
+      sidebar.classList.remove('open');
+      toggle.setAttribute('aria-expanded', 'false');
+      syncSidebarA11y();
+      toggle.focus();
+    }
+  });
+})();
+</script>
+<script>
+/* ============================================================
+   Lecture 11 widgets: serendipity explorer, transition builder,
+   edge-compatibility demo, 3-D brick explorer.
+   Each widget is a self-contained IIFE; shared numerics live in window-free closures.
+   ============================================================ */
+
+/* ---------- shared numerics (copied into each IIFE through this tiny factory) ---------- */
+var LEC11 = (function () {
+  'use strict';
+  var S8X = [-1, 1, 1, -1, 0, 1, 0, -1], S8Y = [-1, -1, 1, 1, -1, 0, 1, 0];
+  var L9X = [-1, 1, 1, -1, 0, 1, 0, -1, 0], L9Y = [-1, -1, 1, 1, -1, 0, 1, 0, 0];
+  function lag1(a, s) { return a === -1 ? 0.5 * s * (s - 1) : (a === 0 ? 1 - s * s : 0.5 * s * (s + 1)); }
+  function s8(xi, eta) {
+    var N = [], i, a, b;
+    for (i = 0; i < 8; i++) {
+      a = S8X[i]; b = S8Y[i];
+      if (i < 4) N.push(0.25 * (1 + a * xi) * (1 + b * eta) * (a * xi + b * eta - 1));
+      else if (a === 0) N.push(0.5 * (1 - xi * xi) * (1 + b * eta));
+      else N.push(0.5 * (1 + a * xi) * (1 - eta * eta));
+    }
+    return N;
+  }
+  function l9(xi, eta) {
+    var N = [], i;
+    for (i = 0; i < 9; i++) N.push(lag1(L9X[i], xi) * lag1(L9Y[i], eta));
+    return N;
+  }
+  /* transition element: corners 1-4 plus the side nodes listed in `sides` (subset of 5..8) */
+  var TOUCH = { 5: [0, 1], 6: [1, 2], 7: [2, 3], 8: [3, 0] };
+  function trans(xi, eta, sides) {
+    var N8 = s8(xi, eta), c = [(1 - xi) * (1 - eta) / 4, (1 + xi) * (1 - eta) / 4, (1 + xi) * (1 + eta) / 4, (1 - xi) * (1 + eta) / 4];
+    var ids = [1, 2, 3, 4], ss = sides.slice().sort(), k, j;
+    for (k = 0; k < ss.length; k++) for (j = 0; j < 2; j++) c[TOUCH[ss[k]][j]] -= 0.5 * N8[ss[k] - 1];
+    for (k = 0; k < ss.length; k++) { c.push(N8[ss[k] - 1]); ids.push(ss[k]); }
+    return { ids: ids, N: c };
+  }
+  function fmt(v, d) {
+    d = d === undefined ? 3 : d;
+    var t = (Math.abs(v) < 0.5 * Math.pow(10, -d) ? 0 : v).toFixed(d);
+    return t.replace('-', '\u2212');
+  }
+  /* diverging banded colour map for a shape-function value */
+  function lerp(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; }
+  var C0 = [246, 242, 234], CN = [47, 93, 158], CM = [232, 150, 58], CP = [255, 238, 170];
+  function colour(v) {
+    if (v < 0) return lerp(C0, CN, Math.min(1, -v / 0.25));
+    if (v < 0.5) return lerp(C0, CM, v / 0.5);
+    return lerp(CM, CP, Math.min(1, (v - 0.5) / 0.5));
+  }
+  /* heat map of f(xi,eta) on [-1,1]^2 drawn into a canvas, with nodes and a probe point */
+  function heat(canvas, f, nodes, pt) {
+    var W = canvas.width, H = canvas.height, pad = 30, size = W - 2 * pad, ctx = canvas.getContext('2d');
+    var band = new Int16Array(size * size), img = ctx.createImageData(size, size), px, py, v, b, c, o;
+    for (py = 0; py < size; py++) for (px = 0; px < size; px++) {
+      v = f(-1 + 2 * (px + 0.5) / size, 1 - 2 * (py + 0.5) / size);
+      b = Math.floor(v * 10 + 1e-9); band[py * size + px] = b;
+      c = colour((Math.max(-3, Math.min(10, b)) + 0.5) / 10);
+      o = 4 * (py * size + px); img.data[o] = c[0]; img.data[o + 1] = c[1]; img.data[o + 2] = c[2]; img.data[o + 3] = 255;
+    }
+    for (py = 0; py < size - 1; py++) for (px = 0; px < size - 1; px++) {
+      b = band[py * size + px];
+      if (b !== band[py * size + px + 1] || b !== band[(py + 1) * size + px]) {
+        o = 4 * (py * size + px); img.data[o] = 60; img.data[o + 1] = 60; img.data[o + 2] = 70;
+      }
+    }
+    ctx.clearRect(0, 0, W, H); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
+    ctx.putImageData(img, pad, pad);
+    ctx.strokeStyle = '#333'; ctx.lineWidth = 1.2; ctx.strokeRect(pad + 0.5, pad + 0.5, size - 1, size - 1);
+    ctx.fillStyle = '#444'; ctx.font = '12px Helvetica, Arial, sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('\u22121', pad, H - 10); ctx.fillText('0', pad + size / 2, H - 10); ctx.fillText('+1', pad + size, H - 10);
+    ctx.textAlign = 'right'; ctx.fillText('\u03BE', W - 4, H - 10);
+    ctx.textAlign = 'right'; ctx.fillText('+1', pad - 6, pad + 4); ctx.fillText('0', pad - 6, pad + size / 2 + 4); ctx.fillText('\u22121', pad - 6, pad + size + 4);
+    ctx.textAlign = 'left'; ctx.fillText('\u03B7', 4, pad + size / 2 - 14);
+    var k, X, Y;
+    function sx(x) { return pad + (x + 1) / 2 * size; }
+    function sy(y) { return pad + (1 - y) / 2 * size; }
+    for (k = 0; k < nodes.length; k++) {
+      X = sx(nodes[k].x); Y = sy(nodes[k].y);
+      ctx.beginPath(); ctx.arc(X, Y, nodes[k].on ? 9 : 6, 0, 6.2832);
+      ctx.fillStyle = nodes[k].on ? '#7a4a63' : '#fff'; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = '#7a4a63'; ctx.stroke();
+      if (nodes[k].on) { ctx.fillStyle = '#fff'; ctx.font = 'bold 11px Helvetica, Arial, sans-serif'; ctx.textAlign = 'center'; ctx.fillText(String(nodes[k].id), X, Y + 4); }
+      else { ctx.fillStyle = '#7a4a63'; ctx.font = '11px Helvetica, Arial, sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText(String(nodes[k].id), X + (nodes[k].x < 0 ? 12 : (nodes[k].x > 0 ? -12 : 0)), Y + (nodes[k].y < 0 ? -10 : (nodes[k].y > 0 ? 16 : 16))); }
+    }
+    if (pt) {
+      X = sx(pt.x); Y = sy(pt.y); ctx.strokeStyle = '#111'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(X - 8, Y); ctx.lineTo(X + 8, Y); ctx.moveTo(X, Y - 8); ctx.lineTo(X, Y + 8); ctx.stroke();
+    }
+  }
+  function range(f, n) {
+    var mn = 1e9, mx = -1e9, mnx = 0, mny = 0, i, j, v, x, y;
+    for (i = 0; i <= n; i++) for (j = 0; j <= n; j++) {
+      x = -1 + 2 * i / n; y = -1 + 2 * j / n; v = f(x, y);
+      if (v < mn) { mn = v; mnx = x; mny = y; } if (v > mx) mx = v;
+    }
+    return { min: mn, max: mx, mnx: mnx, mny: mny };
+  }
+  function canvasPoint(canvas, ev) {
+    var r = canvas.getBoundingClientRect(), pad = 30, size = canvas.width - 2 * pad, k = canvas.width / r.width;
+    var cx = (ev.clientX - r.left) * k, cy = (ev.clientY - r.top) * k;
+    return { x: Math.max(-1, Math.min(1, -1 + 2 * (cx - pad) / size)), y: Math.max(-1, Math.min(1, 1 - 2 * (cy - pad) / size)) };
+  }
+  return { S8X: S8X, S8Y: S8Y, L9X: L9X, L9Y: L9Y, s8: s8, l9: l9, trans: trans, fmt: fmt, heat: heat, range: range, canvasPoint: canvasPoint, lag1: lag1 };
+})();
+
+/* ============================================================
+   Widget 1: shape-function explorer (8-node serendipity vs 9-node Lagrange)
+   ============================================================ */
+(function () {
+  'use strict';
+  var root = document.getElementById('serWidget');
+  if (!root) return;
+  var L = LEC11, cv = document.getElementById('serCanvas'), nodesBox = document.getElementById('serNodes'),
+      typeBox = document.getElementById('serType'), sXi = document.getElementById('serXi'), sEta = document.getElementById('serEta'),
+      oXi = document.getElementById('serXiOut'), oEta = document.getElementById('serEtaOut'), rows = document.getElementById('serRows'),
+      status = document.getElementById('serStatus'), note = document.getElementById('serNote');
+  var st = { type: 'ser', node: 1, xi: 0.3, eta: -0.4 };
+  function fn() { return st.type === 'ser' ? L.s8 : L.l9; }
+  function nn() { return st.type === 'ser' ? 8 : 9; }
+  function px(i) { return st.type === 'ser' ? L.S8X[i] : L.L9X[i]; }
+  function py(i) { return st.type === 'ser' ? L.S8Y[i] : L.L9Y[i]; }
+  function buildNodeButtons() {
+    nodesBox.innerHTML = '';
+    for (var i = 1; i <= nn(); i++) {
+      var b = document.createElement('button'); b.type = 'button'; b.textContent = 'N' + i; b.setAttribute('data-n', i);
+      b.setAttribute('aria-pressed', i === st.node ? 'true' : 'false'); if (i === st.node) b.className = 'active';
+      b.addEventListener('click', function () { st.node = +this.getAttribute('data-n'); buildNodeButtons(); draw(); });
+      nodesBox.appendChild(b);
+    }
+  }
+  function draw() {
+    var f = fn(), idx = st.node - 1;
+    var g = function (x, y) { return f(x, y)[idx]; };
+    var nodes = [], i;
+    for (i = 0; i < nn(); i++) nodes.push({ id: i + 1, x: px(i), y: py(i), on: i === idx });
+    L.heat(cv, g, nodes, { x: st.xi, y: st.eta });
+    var r = L.range(g, 40);
+    var vals = f(st.xi, st.eta), html = '', sum = 0;
+    for (i = 0; i < nn(); i++) {
+      sum += vals[i];
+      html += '<tr' + (i === idx ? ' class="sel"' : '') + '><td>' + (i + 1) + '</td><td>' + (i < 4 ? 'corner' : (i < 8 ? 'mid-side' : 'center')) + '</td><td>(' + px(i) + ', ' + py(i) + ')</td><td class="' + (vals[i] < -1e-12 ? 'neg' : '') + '">' + L.fmt(vals[i]) + '</td></tr>';
+    }
+    html += '<tr class="sumrow"><td colspan="3"><strong>\u03A3 N<sub>i</sub></strong></td><td><strong>' + L.fmt(sum) + '</strong></td></tr>';
+    rows.innerHTML = html;
+    oXi.textContent = L.fmt(st.xi, 2); oEta.textContent = L.fmt(st.eta, 2);
+    var neg = r.min < -1e-9;
+    status.className = 'iso-status ok';
+    status.textContent = 'N' + st.node + ': maximum ' + L.fmt(r.max, 2) + ' (at its own node), minimum ' + L.fmt(r.min, 3) +
+      (neg ? ' near (\u03BE, \u03B7) = (' + L.fmt(r.mnx, 2) + ', ' + L.fmt(r.mny, 2) + ')' : ' (never negative)') + '. Value at the probe point: ' + L.fmt(vals[idx]) + '.';
+    note.textContent = (st.type === 'ser' ? '8-node serendipity element: 16 DOFs, no centre node.' : '9-node Lagrange element: 18 DOFs, centre node required.') +
+      ' Orange/yellow = positive, blue = negative; bands are 0.1 wide and the dark lines are the band edges.';
+  }
+  typeBox.addEventListener('click', function (ev) {
+    var b = ev.target.closest('button'); if (!b) return;
+    st.type = b.getAttribute('data-t');
+    Array.prototype.forEach.call(typeBox.querySelectorAll('button'), function (x) { var on = x === b; x.className = on ? 'active' : ''; x.setAttribute('aria-pressed', on ? 'true' : 'false'); });
+    if (st.node > nn()) st.node = 1;
+    buildNodeButtons(); draw();
+  });
+  sXi.addEventListener('input', function () { st.xi = +sXi.value; draw(); });
+  sEta.addEventListener('input', function () { st.eta = +sEta.value; draw(); });
+  function fromCanvas(ev) { var p = L.canvasPoint(cv, ev); st.xi = Math.round(p.x * 20) / 20; st.eta = Math.round(p.y * 20) / 20; sXi.value = st.xi; sEta.value = st.eta; draw(); }
+  var down = false;
+  cv.addEventListener('pointerdown', function (ev) { down = true; try { cv.setPointerCapture(ev.pointerId); } catch (e) {} fromCanvas(ev); });
+  cv.addEventListener('pointermove', function (ev) { if (down) fromCanvas(ev); });
+  cv.addEventListener('pointerup', function () { down = false; });
+  cv.addEventListener('pointercancel', function () { down = false; });
+  sXi.value = st.xi; sEta.value = st.eta;
+  buildNodeButtons(); draw();
+})();
+
+/* ============================================================
+   Widget 2: transition serendipity builder
+   ============================================================ */
+(function () {
+  'use strict';
+  var root = document.getElementById('trWidget');
+  if (!root) return;
+  var L = LEC11, cv = document.getElementById('trCanvas'), sideBox = document.getElementById('trSides'), nodesBox = document.getElementById('trNodes'),
+      sXi = document.getElementById('trXi'), sEta = document.getElementById('trEta'), oXi = document.getElementById('trXiOut'), oEta = document.getElementById('trEtaOut'),
+      forms = document.getElementById('trForms'), info = document.getElementById('trInfo'), kron = document.getElementById('trKron'),
+      status = document.getElementById('trStatus'), rows = document.getElementById('trRows');
+  var st = { sides: [5, 6, 7, 8], sel: 1, xi: 0.3, eta: -0.4 };
+  var NAMES = { 5: 'bottom', 6: 'right', 7: 'top', 8: 'left' };
+  var SF = { 5: '\u00BD(1\u2212\u03BE\u00B2)(1\u2212\u03B7)', 6: '\u00BD(1+\u03BE)(1\u2212\u03B7\u00B2)', 7: '\u00BD(1\u2212\u03BE\u00B2)(1+\u03B7)', 8: '\u00BD(1\u2212\u03BE)(1\u2212\u03B7\u00B2)' };
+  var BF = ['\u00BC(1\u2212\u03BE)(1\u2212\u03B7)', '\u00BC(1+\u03BE)(1\u2212\u03B7)', '\u00BC(1+\u03BE)(1+\u03B7)', '\u00BC(1\u2212\u03BE)(1+\u03B7)'];
+  var TOUCH = { 5: [1, 2], 6: [2, 3], 7: [3, 4], 8: [4, 1] };
+  function has(k) { return st.sides.indexOf(k) >= 0; }
+  function sub(n) { return 'N<sub>' + n + '</sub>'; }
+  function buildSideButtons() {
+    sideBox.innerHTML = '';
+    [5, 6, 7, 8].forEach(function (k) {
+      var b = document.createElement('button'); b.type = 'button'; b.setAttribute('data-k', k);
+      b.textContent = 'Node ' + k + ' (' + NAMES[k] + ')'; b.setAttribute('aria-pressed', has(k) ? 'true' : 'false'); b.className = has(k) ? 'active' : '';
+      b.addEventListener('click', function () {
+        var kk = +this.getAttribute('data-k'), i = st.sides.indexOf(kk);
+        if (i >= 0) st.sides.splice(i, 1); else st.sides.push(kk);
+        var ids = L.trans(0, 0, st.sides).ids; if (ids.indexOf(st.sel) < 0) st.sel = 1;
+        buildSideButtons(); draw();
+      });
+      sideBox.appendChild(b);
+    });
+  }
+  function buildNodeButtons(ids) {
+    nodesBox.innerHTML = '';
+    ids.forEach(function (id) {
+      var b = document.createElement('button'); b.type = 'button'; b.textContent = 'N' + id; b.setAttribute('data-n', id);
+      b.setAttribute('aria-pressed', id === st.sel ? 'true' : 'false'); b.className = id === st.sel ? 'active' : '';
+      b.addEventListener('click', function () { st.sel = +this.getAttribute('data-n'); draw(); });
+      nodesBox.appendChild(b);
+    });
+  }
+  function pos(id) { return id <= 4 ? [L.S8X[id - 1], L.S8Y[id - 1]] : [L.S8X[id - 1], L.S8Y[id - 1]]; }
+  function draw() {
+    var ids = L.trans(0, 0, st.sides).ids, n = ids.length, idx = ids.indexOf(st.sel);
+    buildNodeButtons(ids);
+    var g = function (x, y) { return L.trans(x, y, st.sides).N[idx]; };
+    var nodes = [], i, j;
+    for (i = 1; i <= 8; i++) {
+      if (i <= 4 || has(i)) nodes.push({ id: i, x: L.S8X[i - 1], y: L.S8Y[i - 1], on: i === st.sel });
+      else nodes.push({ id: '', x: L.S8X[i - 1], y: L.S8Y[i - 1], on: false, ghost: true });
+    }
+    nodes = nodes.filter(function (q) { return !q.ghost; });
+    L.heat(cv, g, nodes, { x: st.xi, y: st.eta });
+    /* construction text */
+    var html = '<p style="margin:0 0 .3em"><strong>Step 1.</strong> corners start as bilinear functions; <strong>Step 2.</strong> each side node gets its parabolic function; <strong>Step 3.</strong> each corner gives up \u00BD of every adjacent side function.</p><ul style="margin:.2em 0 .6em 1.1em;padding:0">';
+    for (i = 1; i <= 4; i++) {
+      var adj = st.sides.filter(function (k) { return TOUCH[k].indexOf(i) >= 0; }).sort();
+      html += '<li>' + sub(i) + ' = ' + BF[i - 1] + adj.map(function (k) { return ' \u2212 \u00BD' + sub(k); }).join('') + '</li>';
+    }
+    st.sides.slice().sort().forEach(function (k) { html += '<li>' + sub(k) + ' = ' + SF[k] + '</li>'; });
+    html += '</ul>';
+    forms.innerHTML = html;
+    /* info */
+    var edges = [5, 7, 6, 8].map(function (k) { return NAMES[k] + ': ' + (has(k) ? 'quadratic (3 nodes)' : 'linear (2 nodes)'); }).join(' \u00B7 ');
+    info.textContent = n + ' nodes, ' + (2 * n) + ' DOFs, element matrix ' + (2 * n) + '\u00D7' + (2 * n) + '. Displacement along each side \u2014 ' + edges + '.';
+    /* Kronecker check */
+    var maxErr = 0, kh = '<table class="iso-table"><thead><tr><th>N<sub>i</sub> at node \u2192</th>' + ids.map(function (j2) { return '<th>' + j2 + '</th>'; }).join('') + '</tr></thead><tbody>';
+    for (i = 0; i < n; i++) {
+      kh += '<tr><td><strong>N' + ids[i] + '</strong></td>';
+      for (j = 0; j < n; j++) {
+        var p = pos(ids[j]), v = L.trans(p[0], p[1], st.sides).N[i], e = Math.abs(v - (i === j ? 1 : 0)); if (e > maxErr) maxErr = e;
+        kh += '<td' + (i === j ? ' style="font-weight:700"' : '') + '>' + L.fmt(v, 0) + '</td>';
+      }
+      kh += '</tr>';
+    }
+    kh += '</tbody></table>';
+    kron.innerHTML = kh;
+    /* values at probe */
+    var T = L.trans(st.xi, st.eta, st.sides), sum = 0, rh = '';
+    for (i = 0; i < n; i++) {
+      sum += T.N[i];
+      rh += '<tr' + (i === idx ? ' class="sel"' : '') + '><td>' + T.ids[i] + '</td><td class="' + (T.N[i] < -1e-12 ? 'neg' : '') + '">' + L.fmt(T.N[i]) + '</td></tr>';
+    }
+    rh += '<tr class="sumrow"><td><strong>\u03A3</strong></td><td><strong>' + L.fmt(sum) + '</strong></td></tr>';
+    rows.innerHTML = rh;
+    oXi.textContent = L.fmt(st.xi, 2); oEta.textContent = L.fmt(st.eta, 2);
+    var okK = maxErr < 1e-12, okS = Math.abs(sum - 1) < 1e-12;
+    status.className = 'iso-status ' + (okK && okS ? 'ok' : 'bad');
+    status.textContent = (okK ? 'Kronecker property holds (N_i = 1 at node i, 0 at the others)' : 'Kronecker property FAILS') + '; ' + (okS ? 'partition of unity holds (\u03A3N_i = 1 at the probe point).' : 'partition of unity FAILS.');
+  }
+  sXi.addEventListener('input', function () { st.xi = +sXi.value; draw(); });
+  sEta.addEventListener('input', function () { st.eta = +sEta.value; draw(); });
+  function fromCanvas(ev) { var p = L.canvasPoint(cv, ev); st.xi = Math.round(p.x * 20) / 20; st.eta = Math.round(p.y * 20) / 20; sXi.value = st.xi; sEta.value = st.eta; draw(); }
+  var down = false;
+  cv.addEventListener('pointerdown', function (ev) { down = true; try { cv.setPointerCapture(ev.pointerId); } catch (e) {} fromCanvas(ev); });
+  cv.addEventListener('pointermove', function (ev) { if (down) fromCanvas(ev); });
+  cv.addEventListener('pointerup', function () { down = false; });
+  cv.addEventListener('pointercancel', function () { down = false; });
+  sXi.value = st.xi; sEta.value = st.eta;
+  buildSideButtons(); draw();
+})();
+
+/* ============================================================
+   Widget 3: compatibility along an interface (4-node vs quadratic neighbour)
+   ============================================================ */
+(function () {
+  'use strict';
+  var root = document.getElementById('edgeWidget');
+  if (!root) return;
+  var svg = document.getElementById('edgeSvg'), sl = document.getElementById('edgeUm'), out = document.getElementById('edgeUmOut'),
+      modes = document.getElementById('edgeMode'), status = document.getElementById('edgeStatus'), note = document.getElementById('edgeNote');
+  var NS = 'http://www.w3.org/2000/svg';
+  var st = { um: 0.10, trans: false }, U1 = 0.0, U2 = 0.20, SC = 150, X0 = 300, YC = 190, HY = 80, XL = 110, XR = 490;
+  function uq(s) { return U1 * 0.5 * s * (s - 1) + st.um * (1 - s * s) + U2 * 0.5 * s * (s + 1); }
+  function ul(s) { return st.trans ? uq(s) : U1 * (1 - s) / 2 + U2 * (1 + s) / 2; }
+  function el(n, a, txt) { var e = document.createElementNS(NS, n), k; for (k in a) e.setAttribute(k, a[k]); if (txt) e.textContent = txt; return e; }
+  function sy(s) { return YC - HY * s; }
+  function curve(f) { var pts = [], i, s; for (i = 0; i <= 40; i++) { s = -1 + i / 20; pts.push([X0 + SC * f(s), sy(s)]); } return pts; }
+  function poly(p) { return p.map(function (q) { return q[0].toFixed(1) + ',' + q[1].toFixed(1); }).join(' '); }
+  function draw() {
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    var defs = el('defs', {}), pat = el('pattern', { id: 'edgeHatch', width: 7, height: 7, patternUnits: 'userSpaceOnUse', patternTransform: 'rotate(45)' });
+    pat.appendChild(el('rect', { width: 7, height: 7, fill: '#fbe3e0' })); pat.appendChild(el('line', { x1: 0, y1: 0, x2: 0, y2: 7, stroke: '#c9473f', 'stroke-width': 2.2 }));
+    defs.appendChild(pat); svg.appendChild(defs);
+    var cl = curve(ul), cr = curve(uq), i;
+    /* undeformed outlines */
+    svg.appendChild(el('rect', { x: XL, y: sy(1), width: X0 - XL, height: 2 * HY, fill: 'none', stroke: '#bbb', 'stroke-dasharray': '4 4' }));
+    svg.appendChild(el('rect', { x: X0, y: sy(1), width: XR - X0, height: 2 * HY, fill: 'none', stroke: '#bbb', 'stroke-dasharray': '4 4' }));
+    /* deformed elements */
+    svg.appendChild(el('polygon', { points: poly([[XL, sy(-1)]].concat(cl, [[XL, sy(1)]])), fill: 'rgba(59,125,216,0.22)', stroke: '#3b7dd8', 'stroke-width': 2 }));
+    svg.appendChild(el('polygon', { points: poly(cr.concat([[XR, sy(1)], [XR, sy(-1)]])), fill: 'rgba(232,150,58,0.25)', stroke: '#c9772a', 'stroke-width': 2 }));
+    /* gap / overlap lens */
+    var lens = cl.concat(cr.slice().reverse());
+    svg.appendChild(el('polygon', { points: poly(lens), fill: 'url(#edgeHatch)', stroke: '#c9473f', 'stroke-width': 1.2, opacity: Math.abs(st.um - (U1 + U2) / 2) > 1e-9 && !st.trans ? 1 : 0 }));
+    /* nodes on the interface */
+    [[-1, U1], [1, U2]].forEach(function (q) { svg.appendChild(el('circle', { cx: X0 + SC * q[1], cy: sy(q[0]), r: 6, fill: '#7a4a63', stroke: '#fff', 'stroke-width': 1.5 })); });
+    svg.appendChild(el('circle', { cx: X0 + SC * st.um, cy: sy(0), r: 6.5, fill: '#c9772a', stroke: '#fff', 'stroke-width': 1.5 }));
+    if (st.trans) svg.appendChild(el('circle', { cx: X0 + SC * st.um, cy: sy(0), r: 10, fill: 'none', stroke: '#3b7dd8', 'stroke-width': 2 }));
+    else { var xm = X0 + SC * (U1 + U2) / 2; svg.appendChild(el('path', { d: 'M' + (xm - 5) + ',' + (sy(0) - 5) + ' L' + (xm + 5) + ',' + (sy(0) + 5) + ' M' + (xm + 5) + ',' + (sy(0) - 5) + ' L' + (xm - 5) + ',' + (sy(0) + 5), stroke: '#3b7dd8', 'stroke-width': 2 })); }
+    /* labels */
+    svg.appendChild(el('text', { x: XL + 8, y: sy(1) - 8, 'font-size': 13, fill: '#3b7dd8', 'font-weight': 700 }, st.trans ? 'Left: transition element (5 nodes)' : 'Left: 4-node element'));
+    svg.appendChild(el('text', { x: XR - 8, y: sy(1) - 8, 'font-size': 13, fill: '#c9772a', 'font-weight': 700, 'text-anchor': 'end' }, 'Right: element with a mid-side node'));
+    svg.appendChild(el('text', { x: X0 + SC * U1 + 12, y: sy(-1) + 16, 'font-size': 11, fill: '#555' }, 'end node'));
+    svg.appendChild(el('text', { x: X0 + SC * U2 + 12, y: sy(1) - 8, 'font-size': 11, fill: '#555' }, 'end node'));
+    svg.appendChild(el('text', { x: X0 + SC * Math.max(st.um, (U1 + U2) / 2) + 16, y: sy(0) + 4, 'font-size': 11, fill: '#555' }, st.trans ? 'shared mid-node' : 'mid-node (right element only)'));
+    var gap = st.um - (U1 + U2) / 2;
+    out.textContent = (st.um >= 0 ? '' : '\u2212') + Math.abs(st.um).toFixed(2);
+    var bad = !st.trans && Math.abs(gap) > 0.005;
+    status.className = 'iso-status ' + (bad ? 'bad' : 'ok');
+    status.textContent = bad ? 'Incompatible: the two elements disagree along the interface by up to ' + Math.abs(gap).toFixed(2) + ' (at its midpoint) \u2014 ' + (gap > 0 ? 'a gap' : 'an overlap') + ' opens.' :
+      (st.trans ? 'Compatible: both elements use the same three nodes and the same parabola along the interface.' : 'Compatible only by accident: the mid-node value equals the average of the end values, so the parabola is a straight line.');
+    note.textContent = 'Displacement difference along the interface: u_right(s) \u2212 u_left(s) = (u_m \u2212 (u_1+u_2)/2)(1 \u2212 s\u00B2) with u_1 = ' + U1.toFixed(2) + ', u_2 = ' + U2.toFixed(2) + '; displacements are drawn greatly exaggerated.';
+  }
+  sl.addEventListener('input', function () { st.um = +sl.value; draw(); });
+  modes.addEventListener('click', function (ev) {
+    var b = ev.target.closest('button'); if (!b) return;
+    st.trans = b.getAttribute('data-m') === 'trans';
+    Array.prototype.forEach.call(modes.querySelectorAll('button'), function (x) { var on = x === b; x.className = on ? 'active' : ''; x.setAttribute('aria-pressed', on ? 'true' : 'false'); });
+    draw();
+  });
+  sl.value = st.um; draw();
+})();
+
+/* ============================================================
+   Widget 4: eight-node brick explorer
+   ============================================================ */
+(function () {
+  'use strict';
+  var root = document.getElementById('brkWidget');
+  if (!root) return;
+  var svg = document.getElementById('brkSvg'), sXi = document.getElementById('brkXi'), sEta = document.getElementById('brkEta'), sChi = document.getElementById('brkChi'),
+      sPull = document.getElementById('brkPull'), oXi = document.getElementById('brkXiOut'), oEta = document.getElementById('brkEtaOut'), oChi = document.getElementById('brkChiOut'), oPull = document.getElementById('brkPullOut'),
+      rows = document.getElementById('brkRows'), jbox = document.getElementById('brkJ'), status = document.getElementById('brkStatus'), note = document.getElementById('brkNote');
+  var NS = 'http://www.w3.org/2000/svg';
+  var X = [-1, 1, 1, -1, -1, 1, 1, -1], Y = [-1, -1, 1, 1, -1, -1, 1, 1], Z = [-1, -1, -1, -1, 1, 1, 1, 1];
+  var st = { xi: 0.2, eta: -0.3, chi: 0.4, pull: 0 };
+  function shape(xi, eta, chi) {
+    var N = [], dN = [[], [], []], i, a, b, c;
+    for (i = 0; i < 8; i++) {
+      a = 1 + X[i] * xi; b = 1 + Y[i] * eta; c = 1 + Z[i] * chi;
+      N.push(a * b * c / 8); dN[0].push(X[i] * b * c / 8); dN[1].push(Y[i] * a * c / 8); dN[2].push(Z[i] * a * b / 8);
+    }
+    return { N: N, dN: dN };
+  }
+  /* physical nodes: an affine (sheared box) map x = 3 + 2xi + 0.5eta, y = 2 + 1.5eta, z = 1 + chi; node 7 can be pulled out along (1,1,1) */
+  function phys() {
+    var P = [], i;
+    for (i = 0; i < 8; i++) P.push([3 + 2 * X[i] + 0.5 * Y[i], 2 + 1.5 * Y[i], 1 + Z[i]]);
+    P[6][0] += st.pull; P[6][1] += st.pull; P[6][2] += st.pull;
+    return P;
+  }
+  function det3(m) { return m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0]) + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]); }
+  function jac(P, xi, eta, chi) {
+    var s = shape(xi, eta, chi), J = [[0, 0, 0], [0, 0, 0], [0, 0, 0]], r, c, i;
+    for (r = 0; r < 3; r++) for (c = 0; c < 3; c++) for (i = 0; i < 8; i++) J[r][c] += s.dN[r][i] * P[i][c];
+    return { J: J, s: s };
+  }
+  function inv3(m) {
+    var d = det3(m), c = [
+      [m[1][1] * m[2][2] - m[1][2] * m[2][1], m[0][2] * m[2][1] - m[0][1] * m[2][2], m[0][1] * m[1][2] - m[0][2] * m[1][1]],
+      [m[1][2] * m[2][0] - m[1][0] * m[2][2], m[0][0] * m[2][2] - m[0][2] * m[2][0], m[0][2] * m[1][0] - m[0][0] * m[1][2]],
+      [m[1][0] * m[2][1] - m[1][1] * m[2][0], m[0][1] * m[2][0] - m[0][0] * m[2][1], m[0][0] * m[1][1] - m[0][1] * m[1][0]]];
+    return c.map(function (row) { return row.map(function (v) { return v / d; }); });
+  }
+  /* Projection convention: x -> screen right, y -> up-right (depth), z -> screen up.
+     The on-figure legend text ('x -> right, y -> depth (up-right), z -> up') must be kept in sync with any change here. */
+  function proj(p) { return [70 + 62 * (p[0] + 0.45 * p[1]), 270 - 62 * (p[2] + 0.35 * p[1])]; }
+  function el(n, a, txt) { var e = document.createElementNS(NS, n), k; for (k in a) e.setAttribute(k, a[k]); if (txt) e.textContent = txt; return e; }
+  function f(v, d) { return LEC11.fmt(v, d === undefined ? 3 : d); }
+  function draw() {
+    var P = phys(), res = jac(P, st.xi, st.eta, st.chi), N = res.s.N, i, j, k;
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    var E = [[0, 1], [1, 2], [2, 3], [3, 0], [4, 5], [5, 6], [6, 7], [7, 4], [0, 4], [1, 5], [2, 6], [3, 7]], hidden = { '3-0': 1, '2-3': 1, '3-7': 1 };
+    /* back face (3,4,7,8) light fill */
+    svg.appendChild(el('polygon', { points: [2, 3, 7, 6].map(function (q) { return proj(P[q]).join(','); }).join(' '), fill: 'rgba(122,74,99,0.07)', stroke: 'none' }));
+    svg.appendChild(el('polygon', { points: [0, 1, 5, 4].map(function (q) { return proj(P[q]).join(','); }).join(' '), fill: 'rgba(59,125,216,0.10)', stroke: 'none' }));
+    E.forEach(function (e) {
+      var a = proj(P[e[0]]), b = proj(P[e[1]]), key = e[0] + '-' + e[1];
+      svg.appendChild(el('line', { x1: a[0], y1: a[1], x2: b[0], y2: b[1], stroke: '#333', 'stroke-width': 1.8, 'stroke-dasharray': hidden[key] ? '5 4' : '0' }));
+    });
+    for (i = 0; i < 8; i++) {
+      var p = proj(P[i]);
+      svg.appendChild(el('circle', { cx: p[0], cy: p[1], r: 10, fill: '#fff', stroke: '#7a4a63', 'stroke-width': 1.8, opacity: 0.4 + 0.6 * Math.min(1, Math.abs(N[i]) * 4) }));
+      svg.appendChild(el('text', { x: p[0], y: p[1] + 4, 'text-anchor': 'middle', 'font-size': 12, 'font-weight': 700, fill: '#7a4a63' }, String(i + 1)));
+    }
+    /* mapped probe point */
+    var q = [0, 0, 0]; for (i = 0; i < 8; i++) for (j = 0; j < 3; j++) q[j] += N[i] * P[i][j];
+    var pq = proj(q); svg.appendChild(el('circle', { cx: pq[0], cy: pq[1], r: 6, fill: '#111' }));
+    svg.appendChild(el('text', { x: pq[0] + 9, y: pq[1] - 8, 'font-size': 12, fill: '#111' }, 'P'));
+    /* axes legend */
+    svg.appendChild(el('text', { x: 12, y: 24, 'font-size': 12, fill: '#555' }, 'x \u2192 right, y \u2192 depth (up-right), z \u2192 up'));
+    /* table */
+    var h = '', sum = 0;
+    for (i = 0; i < 8; i++) { sum += N[i]; h += '<tr><td>' + (i + 1) + '</td><td>(' + X[i] + ', ' + Y[i] + ', ' + Z[i] + ')</td><td>' + f(N[i]) + '</td><td>(' + f(P[i][0], 2) + ', ' + f(P[i][1], 2) + ', ' + f(P[i][2], 2) + ')</td></tr>'; }
+    h += '<tr class="sumrow"><td colspan="2"><strong>\u03A3 N<sub>i</sub></strong></td><td><strong>' + f(sum) + '</strong></td><td>P = (' + f(q[0], 3) + ', ' + f(q[1], 3) + ', ' + f(q[2], 3) + ')</td></tr>';
+    rows.innerHTML = h;
+    /* Jacobian */
+    var J = res.J, d = det3(J), G = d !== 0 ? inv3(J) : null;
+    function mat(M) { return '<table class="jmat">' + M.map(function (r, ri) { return '<tr>' + r.map(function (v) { return '<td class="r' + (ri === 0 ? 1 : 2) + '">' + f(v, 3) + '</td>'; }).join('') + '</tr>'; }).join('') + '</table>'; }
+    var mn = 1e9, g = 4, a, b, c;
+    for (a = 0; a <= g; a++) for (b = 0; b <= g; b++) for (c = 0; c <= g; c++) { var dd = det3(jac(P, -1 + 2 * a / g, -1 + 2 * b / g, -1 + 2 * c / g).J); if (dd < mn) mn = dd; }
+    jbox.innerHTML = '<div class="jlabel">[J] at P (3\u00D73)</div>' + mat(J) + '<div class="jdet' + (d <= 0 ? ' bad' : '') + '">det[J] = ' + f(d) + '</div>' + (G ? '<div class="jlabel">[J]<sup>\u22121</sup> = [\u0393]</div>' + mat(G) : '');
+    oXi.textContent = f(st.xi, 2); oEta.textContent = f(st.eta, 2); oChi.textContent = f(st.chi, 2); oPull.textContent = f(st.pull, 2);
+    var ok = mn > 0;
+    status.className = 'iso-status ' + (ok ? 'ok' : 'bad');
+    status.textContent = ok ? 'Valid element: det[J] > 0 on a 5\u00D75\u00D75 grid of the parent cube (smallest value ' + f(mn, 3) + ').' : 'Invalid element: det[J] \u2264 0 somewhere (smallest sampled value ' + f(mn, 3) + ').';
+    note.textContent = st.pull === 0 ? 'With pull = 0 the eight nodes sit on a sheared box, the map is affine and [J] is the same at every point (det[J] = 2\u00B71.5\u00B71 = 3, volume = 8\u00B73 = 24).' :
+      'Node 7 has been moved by (' + f(st.pull, 2) + ', ' + f(st.pull, 2) + ', ' + f(st.pull, 2) + '): the faces meeting at node 7 are no longer planar parallelograms, so [J] now varies with (\u03BE, \u03B7, \u03C7).';
+  }
+  [[sXi, 'xi'], [sEta, 'eta'], [sChi, 'chi'], [sPull, 'pull']].forEach(function (p) { p[0].value = st[p[1]]; p[0].addEventListener('input', function () { st[p[1]] = +p[0].value; draw(); }); });
+  draw();
+})();
+
+/* ============================================================
+   Python "Run" button (Pyodide in a Web Worker, loaded only after the first click)
+   Timers: loadTimer (~8 s, worker + pyodide.js), installTimer (~40 s, loadPyodide + NumPy; started when the worker
+   reports 'loaded'), runTimer (~30 s, the user script). fail() clears all three before terminating the worker.
+   ============================================================ */
+(function () {
+  var ENABLED = true, PYODIDE = 'https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js';
+  var ta = document.getElementById('s8-code'), run = document.getElementById('s8-run'), out = document.getElementById('s8-output'),
+      st = document.getElementById('s8-status'), cp = document.getElementById('s8-copy');
+  if (!ta || !run || !out) return;
+  var worker = null, ready = false, busy = false, loadTimer = null, installTimer = null, runTimer = null;
+  function clearTimers() {
+    clearTimeout(loadTimer); clearTimeout(installTimer); clearTimeout(runTimer);
+    loadTimer = installTimer = runTimer = null;
+  }
+  function say(t) { out.textContent = t; }
+  function copy() {
+    function done(ok) { st.textContent = ok ? 'Code copied to the clipboard.' : 'Copy blocked here: select the text and press Ctrl+C.'; if (!ok) { ta.focus(); ta.select(); } }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(ta.value).then(function () { done(true); }, function () { done(false); });
+    else { ta.focus(); ta.select(); try { done(document.execCommand('copy')); } catch (e) { done(false); } }
+  }
+  cp.addEventListener('click', copy);
+  if (!ENABLED) { run.disabled = true; st.textContent = 'In-browser execution is switched off; use Copy.'; return; }
+  function fail(msg) {
+    clearTimers();                       /* a late timer must never overwrite this message */
+    busy = false; run.disabled = false;
+    if (worker) { try { worker.terminate(); } catch (e) {} }
+    worker = null; ready = false;
+    say(msg + '\n\nThe in-browser Python runtime is unavailable. Use "Copy code" and paste it into Colab or Jupyter (NumPy required).');
+    st.textContent = 'Backend: unavailable.';
+  }
+  function start(cb) {
+    if (ready && worker) return cb();    /* cached: no load or install timer on later runs */
+    var src = "importScripts('" + PYODIDE + "');postMessage({type:'loaded'});var py;onmessage=async function(e){try{" +
+      "if(e.data.type==='init'){py=await loadPyodide();await py.loadPackage('numpy');postMessage({type:'ready'});}" +
+      "else{var o='';py.setStdout({batched:function(s){o+=s+String.fromCharCode(10);}});py.setStderr({batched:function(s){o+=s+String.fromCharCode(10);}});" +
+      "await py.runPythonAsync(e.data.code);postMessage({type:'done',out:o});}}catch(err){postMessage({type:'error',msg:String(err)});}};";
+    try { worker = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' }))); }
+    catch (e) { return fail('Could not start a Web Worker (' + e.message + ').'); }
+    loadTimer = setTimeout(function () { fail('Timed out after 8 s while loading Pyodide.'); }, 8000);
+    worker.onerror = function () { fail('Could not load Pyodide (network blocked or offline).'); };
+    worker.onmessage = function (ev) {
+      var m = ev.data;
+      if (m.type === 'loaded') {
+        clearTimeout(loadTimer); loadTimer = null;
+        st.textContent = 'Backend: starting Python and installing NumPy...';
+        installTimer = setTimeout(function () { fail('Timed out while installing NumPy.'); }, 40000);
+      }
+      else if (m.type === 'ready') { clearTimers(); ready = true; st.textContent = 'Backend: Pyodide (Python + NumPy) in a Web Worker.'; cb(); }
+      else if (m.type === 'done') { clearTimeout(runTimer); clearTimeout(installTimer); runTimer = installTimer = null; busy = false; run.disabled = false; say(m.out || '(no output)'); }
+      else if (m.type === 'error') {
+        clearTimeout(runTimer); clearTimeout(installTimer); runTimer = installTimer = null; busy = false; run.disabled = false;
+        if (!ready) { clearTimeout(loadTimer); loadTimer = null; if (worker) { try { worker.terminate(); } catch (e) {} } worker = null; }
+        say('Python error:\n' + m.msg);
+      }
+    };
+    worker.postMessage({ type: 'init' });
+  }
+  run.addEventListener('click', function () {
+    if (busy) return;
+    busy = true; run.disabled = true;
+    if (!ready) { say('Loading the Python runtime (first run only)...'); st.textContent = 'Backend: loading Pyodide from a CDN...'; }
+    start(function () {
+      say('Running...');
+      runTimer = setTimeout(function () { fail('The script ran for more than 30 s and was stopped.'); }, 30000);
+      worker.postMessage({ type: 'run', code: ta.value });
+    });
+  });
+})();
+</script>
+</body>
+</html>
